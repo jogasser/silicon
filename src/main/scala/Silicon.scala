@@ -381,7 +381,7 @@ object SiliconRunner extends SiliconRunnerInstance {
   }
 }
 
-class SiliconRunnerInstance extends SiliconFrontend(StdIOReporter()) {
+class SiliconRunnerInstance extends SiliconFrontend(StatisticsReporter(StdIOReporter())) {
   def runMain(args: Array[String]): Unit = {
     var exitCode = 1 /* Only 0 indicates no error - we're pessimistic here */
 
