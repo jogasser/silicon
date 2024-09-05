@@ -22,18 +22,21 @@ import viper.silicon.extensions.ConditionalPermissionRewriter
 import viper.silicon.interfaces._
 import viper.silicon.interfaces.decider.ProverLike
 import viper.silicon.logger.{MemberSymbExLogger, SymbExLogger}
-import viper.silicon.reporting.{MultiRunRecorders, condenseToViperResult}
+import reporting.{MultiRunRecorders, SolverStatistics, Z3Statistics, condenseToViperResult}
 import viper.silicon.state._
 import viper.silicon.state.terms.{Decl, Sort, Term, sorts}
 import viper.silicon.supporters._
 import viper.silicon.supporters.functions.{DefaultFunctionVerificationUnitProvider, FunctionData}
 import viper.silicon.supporters.qps._
 import viper.silicon.utils.Counter
-import viper.silver.ast.{BackendType, Member}
+import viper.silver.ast.{BackendType, Member, Method}
 import viper.silver.ast.utility.rewriter.Traverse
 import viper.silver.cfg.silver.SilverCfg
-import viper.silver.reporter.{AnnotationWarning, ConfigurationConfirmation, ExecutionTraceReport, QuantifierChosenTriggersMessage, Reporter, VerificationResultMessage, VerificationTerminationMessage, WarningsDuringVerification}
+import viper.silver.reporter.{AnnotationWarning, ConfigurationConfirmation, ExecutionTraceReport, QuantifierChosenTriggersMessage, Reporter, StatisticsReporter, VerificationResultMessage, VerificationTerminationMessage, WarningsDuringVerification}
 import viper.silver.verifier.VerifierWarning
+
+import java.io.{File, FileWriter, PrintWriter}
+import java.nio.file.{Files, Paths}
 
 /* TODO: Extract a suitable MainVerifier interface, probably including
  *         - def verificationPoolManager: VerificationPoolManager)
@@ -219,20 +222,25 @@ class DefaultMainVerifier(config: Config,
      */
     val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
       val startTime = System.currentTimeMillis()
+      val beforeStats = SolverStatistics(decider.statistics())
       val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
         .flatMap(extractAllVerificationResults)
+      val stats = SolverStatistics(decider.statistics()).subtract(beforeStats)
+      // calculate delta
       val elapsed = System.currentTimeMillis() - startTime
-      reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results))
+      reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results), stats)
       logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
       setErrorScope(results, function)
     })
 
     val predicateVerificationResults = predicateSupporter.units.toList flatMap (predicate => {
       val startTime = System.currentTimeMillis()
+      val beforeStats = SolverStatistics(decider.statistics())
       val results = predicateSupporter.verify(createInitialState(predicate, program, functionData, predicateData), predicate)
         .flatMap(extractAllVerificationResults)
+      val stats = SolverStatistics(decider.statistics()).subtract(beforeStats)
       val elapsed = System.currentTimeMillis() - startTime
-      reporter report VerificationResultMessage(s"silicon", predicate, elapsed, condenseToViperResult(results))
+      reporter report VerificationResultMessage(s"silicon", predicate, elapsed, condenseToViperResult(results), stats)
       logger debug s"Silicon finished verification of predicate `${predicate.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
       setErrorScope(results, predicate)
     })
@@ -250,19 +258,22 @@ class DefaultMainVerifier(config: Config,
     _verificationPoolManager.pooledVerifiers.comment("End function- and predicate-related preamble")
     _verificationPoolManager.pooledVerifiers.comment("-" * 60)
 
+    val beforeMethodVerifyStats = _verificationPoolManager.workerVerifiers.map(v => v -> SolverStatistics(v.decider.statistics())).toMap
+
     val verificationTaskFutures: Seq[Future[Seq[VerificationResult]]] =
       program.methods.filterNot(excludeMethod).map(method => {
 
         val s = createInitialState(method, program, functionData, predicateData).copy(parallelizeBranches =
           Verifier.config.parallelizeBranches()) /* [BRANCH-PARALLELISATION] */
-
+        // TODO Branch parallelization
         _verificationPoolManager.queueVerificationTask(v => {
           val startTime = System.currentTimeMillis()
+          val beforeStats = SolverStatistics(v.decider.statistics())
           val results = v.methodSupporter.verify(s, method)
             .flatMap(extractAllVerificationResults)
+          val stats = SolverStatistics(v.decider.statistics()).subtract(beforeStats)
           val elapsed = System.currentTimeMillis() - startTime
-
-          reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results))
+          reporter report VerificationResultMessage(s"silicon", method, elapsed, condenseToViperResult(results), stats)
           logger debug s"Silicon finished verification of method `${method.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
 
           setErrorScope(results, method)
@@ -284,6 +295,30 @@ class DefaultMainVerifier(config: Config,
       })
 
     val methodVerificationResults = verificationTaskFutures.flatMap(_.get())
+    val afterMethodVerifyStats = _verificationPoolManager.workerVerifiers.map(v => SolverStatistics(v.decider.statistics()).subtract(beforeMethodVerifyStats(v)))
+      .reduce((a, b) => a.add(b))
+
+    reporter match {
+      case s: StatisticsReporter =>
+        val statsOutputFile = inputFile.map(f => f.replaceFirst("\\..*+$", "") + ".csv").getOrElse("data.csv")
+        logger.info(s"Writing to: $statsOutputFile" )
+        val exists = Files.exists(Paths.get(statsOutputFile))
+
+        val writer = new FileWriter(statsOutputFile, true)
+        if(!exists) {
+          writer.write("name,rlimit_count,quantifier_instantiations\n")
+        }
+        s.statistics.foreach(entry => {
+          writer.write(entry._1.name + "," + entry._2  + "\n")
+        });
+        writer.close()
+
+        val stats = s.statistics.filter(entry => entry._1.isInstanceOf[Method]).values.collect({ case z: Z3Statistics => z})
+          .reduce((a,b) => a.add(b))
+        logger.info("Total statistics all entities QI: {}, RL: {}", stats.quantifierInstantiations, stats.rlimitCount);
+        logger.info("Total statistics all deciders QI: {}, RL: {}", afterMethodVerifyStats.quantifierInstantiations, afterMethodVerifyStats.rlimitCount);
+      case _ =>
+    }
 
     if (config.ideModeAdvanced()) {
       reporter report ExecutionTraceReport(

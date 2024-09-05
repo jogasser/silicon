@@ -355,24 +355,30 @@ abstract class ProverStdIO(uniqueId: String,
 
     writeLine("(get-info :all-statistics)")
 
-    do {
-      line = readLineFromInput()
-      comment(line)
+    try {
+      do {
+          line = readLineFromInput()
+        comment(line)
 
-      /* Check that the first line starts with "(:". */
-      if (line.isEmpty && !line.startsWith("(:"))
-        throw ProverInteractionFailed(uniqueId, s"Unexpected output of prover while reading statistics: $line")
+        /* Check that the first line starts with "(:". */
+        if (line.isEmpty && !line.startsWith("(:"))
+          throw ProverInteractionFailed(uniqueId, s"Unexpected output of prover while reading statistics: $line")
 
-      line match {
-        case entryPattern(entryName, entryNumber) =>
-          stats = stats + (entryName -> entryNumber)
-        case _ =>
-      }
+        line match {
+          case entryPattern(entryName, entryNumber) =>
+            stats = stats + (entryName -> entryNumber)
+          case _ =>
+        }
 
-      repeat = !line.endsWith(")")
-    } while (repeat)
+        repeat = !line.endsWith(")")
+      } while (repeat)
 
-    toMap(stats)
+      toMap(stats)
+    }
+    catch {
+      // We don't want to crash verification just because we couldn't collect statistics
+      case _: Throwable => Map()
+    }
   }
 
   def comment(str: String): Unit = {
