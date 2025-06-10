@@ -547,16 +547,15 @@ class DefaultMainVerifier(config: Config,
       component.declareSortsAfterAnalysis(sink))
 
     sink.comment("/" * 10 + " Sort wrappers")
-    emitSortWrappers(Seq(sorts.Int, sorts.Bool, sorts.Ref, sorts.Perm), sink)
-
-    sortWrapperDeclarationOrder foreach (component =>
-      emitSortWrappers(component.sortsAfterAnalysis, sink))
-
     val backendTypes = new mutable.LinkedHashSet[BackendType]
     program.visit{
       case t: BackendType => backendTypes.add(t)
     }
-    emitSortWrappers(backendTypes map symbolConverter.toSort, sink)
+    val collectedSorts = Seq(sorts.Int, sorts.Bool, sorts.Ref, sorts.Perm) ++
+      sortWrapperDeclarationOrder.flatMap(component => component.sortsAfterAnalysis) ++
+      backendTypes.map(t => symbolConverter.toSort(t))
+
+    emitSortWrappers(collectedSorts, sink)
 
     sink.comment("/" * 10 + " Symbols")
     symbolDeclarationOrder foreach (component =>
@@ -578,41 +577,18 @@ class DefaultMainVerifier(config: Config,
   }
 
   private def emitSortWrappers(ss: Iterable[Sort], sink: ProverLike): Unit = {
-    if (ss.nonEmpty) {
-      sink.comment("Declaring additional sort wrappers")
+    sink.comment("Declaring sort wrappers")
 
-      ss.foreach(sort => {
-        val toSnapWrapper = terms.SortWrapperDecl(sort, sorts.Snap)
-        val fromSnapWrapper = terms.SortWrapperDecl(sorts.Snap, sort)
+    var str = "(declare-datatypes () (($Snap $Snap.unit"
+    ss.foreach(sort => {
+      val sanitizedSortString = termConverter.convertSanitized(sort)
+      val sortString = termConverter.convert(sort)
 
-        sink.declare(toSnapWrapper)
-        sink.declare(fromSnapWrapper)
+      str += (" ($SortWrappers." + sanitizedSortString + "To$Snap ($SortWrappers.$SnapTo" + sanitizedSortString + " "+ sortString + "))")
+    })
+    str += " ($Snap.combine ($Snap.first $Snap) ($Snap.second $Snap)))))"
 
-        val sanitizedSortString = termConverter.convertSanitized(sort)
-        val sortString = termConverter.convert(sort)
-
-        if (sanitizedSortString.contains("$T$")) {
-          // Ensure that sanitizedSortString does not contain the key which we substitute with sortString,
-          // because otherwise, we can have $T$ -> ....$S$.... -> ....<sortString>...., which is not what we want.
-          var i = 0
-          while (sanitizedSortString.contains(s"$$T$i$$")) {
-            i += 1
-          }
-
-          preambleReader.emitParametricPreamble("/sortwrappers.smt2",
-            Map("$T$" -> s"$$T$i$$",
-                "$S$" -> sanitizedSortString,
-                s"$$T$i$$" -> sortString),
-            sink)
-        } else {
-          preambleReader.emitParametricPreamble("/sortwrappers.smt2",
-            Map("$S$" -> sanitizedSortString,
-                "$T$" -> sortString),
-            sink)
-        }
-
-      })
-    }
+    sink.emit(str)
   }
 
   private def setErrorScope(results: Seq[VerificationResult], scope: Member): Seq[VerificationResult] = {
