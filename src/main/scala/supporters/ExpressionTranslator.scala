@@ -93,7 +93,7 @@ trait ExpressionTranslator {
         val translatedTriggers = eTriggers map (triggerSet => Trigger(triggerSet.exps map (trigger =>
           f(trigger) match {
             case app @ App(fun: HeapDepFun, _) =>
-              app.copy(applicable = functionSupporter.limitedVersion(fun))
+              app.copy(applicable = fun)
             case other => other
           }
         )))

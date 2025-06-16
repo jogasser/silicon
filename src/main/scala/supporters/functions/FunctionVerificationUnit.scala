@@ -26,7 +26,7 @@ import viper.silicon.supporters.PredicateData
 import viper.silicon.utils.ast.{BigAnd, simplifyVariableName}
 import viper.silicon.verifier.{Verifier, VerifierComponent}
 import viper.silicon.utils.{freshSnap, toSf}
-import viper.silver.ast.LocalVarWithVersion
+import viper.silver.ast.{FuncApp, LocalVarWithVersion}
 import viper.silver.parser.PType
 
 import scala.annotation.unused
@@ -114,7 +114,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     private def generateFunctionSymbolsAfterAnalysis: Iterable[Either[String, Decl]] = (
          Seq(Left("Declaring symbols related to program functions (from program analysis)"))
       ++ functionData.values.flatMap(data =>
-            Seq(data.function, data.limitedFunction, data.statelessFunction, data.preconditionFunction).map(FunctionDecl)
+           Seq(data.limitedFunction, data.statelessFunction, data.preconditionFunction).map(FunctionDecl)
          ).map(Right(_))
     )
 
@@ -175,7 +175,6 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
           result1
 
         case (result1, phase1data) =>
-          emitAndRecordFunctionAxioms(data.limitedAxiom)
           emitAndRecordFunctionAxioms(data.triggerAxiom)
           emitAndRecordFunctionAxioms(data.postAxiom.toSeq: _*)
           emitAndRecordFunctionAxioms(data.postPreconditionPropagationAxiom: _*)
@@ -191,7 +190,6 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
               case fatalResult: FatalResult =>
                 data.verificationFailures = data.verificationFailures :+ fatalResult
               case _ =>
-                emitAndRecordFunctionAxioms(data.definitionalAxiom.toSeq: _*)
                 emitAndRecordFunctionAxioms(data.bodyPreconditionPropagationAxiom: _*)
             }
 
@@ -265,10 +263,13 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
                 val eNew = ast.EqCmp(ast.Result(function.typ)(), bodyNew.get)(function.pos, function.info, function.errT)
                 Some(DebugExp.createInstance(e, eNew))
               } else { None }
-              decider.assume(BuiltinEquals(data.formalResult, tBody), debugExp)
+              recorders :+=s2.functionRecorder
+              decider.prover.declare(data.functionDeclaration(Some(tBody)))
+              decider.assume(BuiltinEquals(data.formalResult, App(data.function, data.arguments)), debugExp)
               consumes(s2, posts, false, postconditionViolated, v)((s3, _, _) => {
                 recorders :+= s3.functionRecorder
-                Success()})})})}
+                Success()})
+            })})}
 
       data.advancePhase(recorders)
 
@@ -307,6 +308,10 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       }
 
       freshVars foreach (x => sink.declare(ConstDecl(x)))
+    }
+
+    def defineFunctionsAfterVerification(sink: ProverLike): Unit = {
+      functionData.values.foreach(data => sink.declare(data.functionDeclaration(data.optBody)))
     }
 
     val axiomsAfterVerification: Iterable[Term] = emittedFunctionAxioms

@@ -249,6 +249,7 @@ class DefaultMainVerifier(config: Config,
     functionsSupporter.declareSortsAfterVerification(_verificationPoolManager.pooledVerifiers)
     predicateSupporter.declareSymbolsAfterVerification(_verificationPoolManager.pooledVerifiers)
     functionsSupporter.declareSymbolsAfterVerification(_verificationPoolManager.pooledVerifiers)
+    functionsSupporter.defineFunctionsAfterVerification(_verificationPoolManager.pooledVerifiers)
     predicateSupporter.emitAxiomsAfterVerification(_verificationPoolManager.pooledVerifiers)
     functionsSupporter.emitAxiomsAfterVerification(_verificationPoolManager.pooledVerifiers)
     _verificationPoolManager.pooledVerifiers.comment("End function- and predicate-related preamble")

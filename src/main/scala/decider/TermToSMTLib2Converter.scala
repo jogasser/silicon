@@ -97,6 +97,12 @@ class TermToSMTLib2Converter
       val bodyDoc = render(body)
 
       parens(text("define-fun") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
+    case FunctionDef(func, args, body) =>
+      val idDoc = render(func.id)
+      val argDocs = (args map (v => parens(text(render(v.id)) <+> render(v.sort)))).to(collection.immutable.Seq)
+      val bodyDoc = render(body)
+      val bodySortDoc = render(body.sort)
+      parens(text("define-fun-rec") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
   }
 
   def convert(t: Term): String = {

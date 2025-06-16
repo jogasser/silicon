@@ -955,7 +955,7 @@ object evaluator extends EvaluationRules {
                   val funcAppAnn = fapp.info.getUniqueInfo[AnnotationInfo]
                   funcAppAnn match {
                     case Some(a) if a.values.contains("reveal") => App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
-                    case _ => App(functionSupporter.limitedVersion(v3.symbolConverter.toFunction(func)), snap1 :: tArgs)
+                    case _ => App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
                   }
                 case _ => App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
               }
@@ -1596,7 +1596,7 @@ object evaluator extends EvaluationRules {
           * Keep this code in sync with [[viper.silicon.supporters.ExpressionTranslator.translate]]
           *
           */
-        app.copy(applicable = functionSupporter.limitedVersion(fun))
+        app.copy(applicable = fun)
       case other =>
         other
     }

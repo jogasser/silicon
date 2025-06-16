@@ -266,6 +266,10 @@ class FunctionData(val programFunction: ast.Function,
     expressionTranslator.translate(program, programFunction, this)
   }
 
+  def functionDeclaration(body: Option[Term]): Decl = {
+    if (body.isEmpty) FunctionDecl(function) else FunctionDef(function, arguments, body.get)
+  }
+
   lazy val definitionalAxiom: Option[Term] = {
     assert(phase == 2, s"Definitional axiom must be generated in phase 2, current phase is $phase")
 

@@ -116,6 +116,15 @@ class FunctionDecl private[terms] (val func: Function) extends Decl with Conditi
   override val equalityDefiningMembers: Function = func
 }
 
+object FunctionDef extends CondFlyweightFactory[(Function, Seq[Var], Term), FunctionDef, FunctionDef] {
+  override def actualCreate(args: (Function, Stack[Var], Term)): FunctionDef = new FunctionDef(args._1, args._2, args._3)
+}
+
+class FunctionDef (val func: Function, val args: Seq[Var], val body: Term) extends Decl with ConditionalFlyweight[(Function, Seq[Var], Term), FunctionDef] {
+  val id: Identifier = func.id
+  override val equalityDefiningMembers: (Function, Seq[Var], Term) = (func, args, body)
+}
+
 object FunctionDecl extends CondFlyweightFactory[Function, FunctionDecl, FunctionDecl] {
   override def actualCreate(args: Function): FunctionDecl = new FunctionDecl(args)
 }
