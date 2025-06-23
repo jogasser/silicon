@@ -138,7 +138,7 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
             val funcAppAnn = eFApp.info.getUniqueInfo[AnnotationInfo]
             funcAppAnn match {
               case Some(a) if a.values.contains("reveal") => symbolConverter.toFunction(silverFunc)
-              case _ => symbolConverter.toFunction(silverFunc)
+              case _ => functionSupporter.limitedVersion(symbolConverter.toFunction(silverFunc))
             }
           case _ => symbolConverter.toFunction(silverFunc)
         }
@@ -152,7 +152,7 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
         if (callerHeight < calleeHeight)
           fapp
         else
-          fapp.copy(applicable = fun)
+          fapp.copy(applicable = functionSupporter.limitedVersion(fun))
 
       case _ => super.translate(symbolConverter.toSort)(e)
     }

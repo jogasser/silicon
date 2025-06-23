@@ -965,9 +965,13 @@ object evaluator extends EvaluationRules {
               val tFApp = funcAnn match {
                 case Some(a) if a.values.contains("opaque") =>
                   val funcAppAnn = fapp.info.getUniqueInfo[AnnotationInfo]
+                  val fun = v3.symbolConverter.toFunction(func);
                   funcAppAnn match {
-                    case Some(a) if a.values.contains("reveal") => App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
-                    case _ => App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
+                    case Some(a) if a.values.contains("reveal") => App(fun, snap1 :: tArgs)
+                    case _ => App(
+                      if (s3.currentMember.get.isInstanceOf[ast.Function]) functionSupporter.limitedVersion(fun) else fun,
+                      snap1 :: tArgs
+                    )
                   }
                 case _ => App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
               }
@@ -1608,7 +1612,7 @@ object evaluator extends EvaluationRules {
           * Keep this code in sync with [[viper.silicon.supporters.ExpressionTranslator.translate]]
           *
           */
-        app.copy(applicable = fun)
+        app.copy(applicable = if (s.currentMember.get.isInstanceOf[ast.Function]) functionSupporter.limitedVersion(fun) else fun)
       case other =>
         other
     }
