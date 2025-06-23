@@ -223,6 +223,7 @@ class DefaultMainVerifier(config: Config,
      */
     val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
       val startTime = System.currentTimeMillis()
+      // TODO inspect height & emit definitions when heights increase
       val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
         .flatMap(extractAllVerificationResults)
       val elapsed = System.currentTimeMillis() - startTime

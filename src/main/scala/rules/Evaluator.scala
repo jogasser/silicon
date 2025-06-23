@@ -969,7 +969,9 @@ object evaluator extends EvaluationRules {
                   funcAppAnn match {
                     case Some(a) if a.values.contains("reveal") => App(fun, snap1 :: tArgs)
                     case _ => App(
-                      if (s3.currentMember.get.isInstanceOf[ast.Function]) functionSupporter.limitedVersion(fun) else fun,
+                      // TODO jgacompare function heights wenn >/<, use fun, else limited.
+                      // s3.functionData(s3.currentMember).height > s3.functionData(func).height
+                      if (s3.currentMember.isInstanceOf[Function]) functionSupporter.limitedVersion(fun) else fun,
                       snap1 :: tArgs
                     )
                   }

@@ -308,6 +308,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       freshVars foreach (x => sink.declare(ConstDecl(x)))
     }
 
+    // TODO jga mutual recursion -> define all functions together
     def defineFunctionsAfterVerification(sink: ProverLike): Unit = {
       functionData.values.foreach(data => sink.declare(data.functionDeclaration(data.optBody)))
     }
