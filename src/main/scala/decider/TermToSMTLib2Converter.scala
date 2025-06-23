@@ -187,6 +187,7 @@ class TermToSMTLib2Converter
       case _: sorts.Map => renderApp("Map_equal", Seq(bop.p0, bop.p1), bop.sort)
       case sort => sys.error(s"Don't know how to translate equality between symbols $sort-typed terms")
     }
+    case IsSortWrapper(SortWrapper(t, to)) => parens(parens(text("_ is ") <> render(SortWrapperId(to, t.sort))) <+> convert(t))
 
     /* Arithmetic */
 

@@ -570,6 +570,8 @@ object evaluator extends EvaluationRules {
                   val (s2, pmDef) = if (s1.heapDependentTriggers.contains(MagicWandIdentifier(wand, s1.program))) {
                     val (s2, smDef, pmDef) = quantifiedChunkSupporter.heapSummarisingMaps(s1, wand, formalVars, relevantChunks, v1)
                     val debugExp = Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${identifier.toString}($eArgsString))", isInternal_ = true))
+
+                    v1.decider.assumeSortWrapper(toSnapTree(args))
                     v1.decider.assume(PredicateTrigger(identifier.toString, smDef.sm, args), debugExp)
                     (s2, pmDef)
                   } else {
@@ -579,6 +581,7 @@ object evaluator extends EvaluationRules {
 
                     (s1.copy(pmCache = pmCache), pmDef)
                   }
+                  v1.decider.assumeSortWrapper(toSnapTree(args))
                   (s2, PredicatePermLookup(identifier.toString, pmDef.pm, args))
 
                 case field: ast.Field =>
@@ -613,8 +616,11 @@ object evaluator extends EvaluationRules {
                   if (s2.heapDependentTriggers.contains(predicate)){
                     val trigger = PredicateTrigger(predicate.name, smDef.sm, args)
                     val argsString = eArgsNew.mkString(", ")
+
+                    v1.decider.assumeSortWrapper(toSnapTree(args))
                     v1.decider.assume(trigger, Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($argsString))", isInternal_ = true)))
                   }
+                  v1.decider.assumeSortWrapper(toSnapTree(args))
                   (s2, PredicatePermLookup(identifier.toString, pmDef.pm, args))
               }
             } else {
@@ -732,12 +738,18 @@ object evaluator extends EvaluationRules {
               val bc = IsPositive(ch.perm.replace(ch.quantifiedVars, ts1))
               val bcExp: ast.Exp = ast.LocalVar("chunk has non-zero permission", ast.Bool)() // TODO
               val bcExpNew = Option.when(withExp)(ast.GeCmp(replaceVarsInExp(ch.permExp.get, ch.quantifiedVarExps.get.map(_.name), es1.get), ast.NoPerm()())(ch.permExp.get.pos, ch.permExp.get.info, ch.permExp.get.errT))
+
+              v.decider.assumeSortWrapper(toSnapTree(ts1))
               val tTriggers = Seq(Trigger(ch.valueAt(ts1)))
 
               val trig = ch match {
                 case fc: QuantifiedFieldChunk => FieldTrigger(fc.id.name, fc.fvf, ts1.head)
-                case pc: QuantifiedPredicateChunk => PredicateTrigger(pc.id.name, pc.psf, ts1)
-                case wc: QuantifiedMagicWandChunk => PredicateTrigger(wc.id.toString, wc.wsf, ts1)
+                case pc: QuantifiedPredicateChunk =>
+                  v1.decider.assumeSortWrapper(toSnapTree(ts1))
+                  PredicateTrigger(pc.id.name, pc.psf, ts1)
+                case wc: QuantifiedMagicWandChunk =>
+                  v1.decider.assumeSortWrapper(toSnapTree(ts1))
+                  PredicateTrigger(wc.id.toString, wc.wsf, ts1)
               }
 
               evalImplies(s2, And(trig, bc), (bcExp, bcExpNew), body, false, pve, v1)((s3, tImplies, bodyNew, v2) => {
@@ -943,7 +955,7 @@ object evaluator extends EvaluationRules {
                              assertReadAccessOnly = if (Verifier.config.respectFunctionPrePermAmounts())
                                s2.assertReadAccessOnly /* should currently always be false */ else true)
             consumes(s3, pres, true, _ => pvePre, v2)((s4, snap, v3) => {
-              val snap1 = snap.get.convert(sorts.Snap)
+              val snap1 = v.decider.assumeSortWrapper(snap.get.convert(sorts.Snap))
               val preFApp = App(functionSupporter.preconditionVersion(v3.symbolConverter.toFunction(func)), snap1 :: tArgs)
               val preExp = Option.when(withExp)({
                 DebugExp.createInstance(Some(s"precondition of ${func.name}(${eArgsNew.get.mkString(", ")}) holds"), None, None, InsertionOrderedSet.empty)
@@ -1019,7 +1031,7 @@ object evaluator extends EvaluationRules {
                       if (!Verifier.config.disableFunctionUnfoldTrigger()) {
                         val eArgsString = eArgsNew.mkString(", ")
                         val debugExp = Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($eArgsString))", isInternal_ = true))
-                        v4.decider.assume(App(s.predicateData(predicate).triggerFunction, snap.get.convert(terms.sorts.Snap) +: tArgs), debugExp)
+                        v4.decider.assume(App(s.predicateData(predicate).triggerFunction, v.decider.assumeSortWrapper(snap.get.convert(terms.sorts.Snap)) +: tArgs), debugExp)
                       }
                       val body = predicate.body.get /* Only non-abstract predicates can be unfolded */
                       val s7 = s6.scalePermissionFactor(tPerm, ePermNew)
@@ -1844,6 +1856,7 @@ object evaluator extends EvaluationRules {
 
     evals(s1, pa.args, _ => pve, v)((_, tArgs, _, _) => {
       axioms = axioms ++ smDef1.valueDefinitions
+      v.decider.assumeSortWrapper(toSnapTree(tArgs))
       mostRecentTrig = PredicateTrigger(pa.predicateName, smDef1.sm, tArgs)
       triggers = triggers :+ mostRecentTrig
       Success()
@@ -1876,6 +1889,7 @@ object evaluator extends EvaluationRules {
 
     evals(s1, wand.subexpressionsToEvaluate(s.program), _ => pve, v)((_, tArgs, _, _) => {
       axioms = axioms ++ smDef1.valueDefinitions
+      v.decider.assumeSortWrapper(toSnapTree(tArgs))
       mostRecentTrig = PredicateTrigger(MagicWandIdentifier(wand, s.program).toString, smDef1.sm, tArgs)
       triggers = triggers :+ mostRecentTrig
       Success()

@@ -2169,6 +2169,13 @@ object Second extends CondFlyweightTermFactory[Term, Second] {
   override def actualCreate(args: Term): Second = new Second(args)
 }
 
+class IsSortWrapper(val s: SortWrapper) extends BooleanTerm with ConditionalFlyweight[SortWrapper, IsSortWrapper] {
+  override val equalityDefiningMembers: SortWrapper = s
+}
+object IsSortWrapper extends PreciseCondFlyweightFactory[SortWrapper, IsSortWrapper] {
+  override def actualCreate(args: SortWrapper): IsSortWrapper = new IsSortWrapper(args)
+
+}
 /* Quantified permissions */
 
 class Lookup(val field: String, val fvf: Term, val at: Term) extends Term with ConditionalFlyweight[(String, Term, Term), Lookup] {

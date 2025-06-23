@@ -253,6 +253,7 @@ object havocSupporter extends SymbolicExecutionRules {
     // Use this to rewrite cond in terms of s
     val codomainToAggregate: Map[Term, Term] =
       codomainQVars.zip(fromSnapTree(aggregateQvar, codomainQVars)).to(Map)
+    codomainToAggregate.values.collect({ case s: SortWrapper => s }).foreach(s => v.decider.assumeSortWrapper(s))
     val transformedCond = cond.replace(codomainToAggregate)
 
     val id = ChunkIdentifier(resource, s.program)
@@ -268,6 +269,7 @@ object havocSupporter extends SymbolicExecutionRules {
 
       // axiomatize the snapshot map:
       //  forall s: Snap :: !cond(s) ==> sm(s) == sm'(s)
+      v.decider.assumeSortWrapper(toSnapTree(Seq(aggregateQvar)))
       val lookupNew = ResourceLookup(resource, newSm, Seq(aggregateQvar), s.program)
       val lookupOld = ResourceLookup(resource, ch.snapshotMap, Seq(aggregateQvar), s.program)
       val newAxiom = Forall(

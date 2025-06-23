@@ -635,6 +635,7 @@ object executor extends ExecutionRules {
               val eArgsStr = eArgsNew.mkString(", ")
               val debugExp = Option.when(withExp)(DebugExp.createInstance(Some(s"PredicateTrigger(${predicate.name}($eArgsStr))"), Some(pa),
                 Some(ast.PredicateAccess(eArgsNew.get, predicateName)(pa.pos, pa.info, pa.errT)), None, isInternal_ = true, InsertionOrderedSet.empty))
+              v2.decider.assumeSortWrapper(toSnapTree(tArgs))
               v2.decider.assume(PredicateTrigger(predicate.name, smDef1.sm, tArgs), debugExp)
               smCache1
             } else {
@@ -686,6 +687,8 @@ object executor extends ExecutionRules {
                 val (smDef, smCache) =
                   quantifiedChunkSupporter.summarisingSnapshotMap(
                     s2, wand, formalVars, relevantChunks, v1)
+
+                v1.decider.assumeSortWrapper(toSnapTree(ch.singletonArgs.get))
                 v1.decider.assume(PredicateTrigger(ch.id.toString, smDef.sm, ch.singletonArgs.get),
                   Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${ch.id.toString}(${ch.singletonArgExps.get}))", isInternal_ = true)))
                 smCache

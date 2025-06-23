@@ -14,6 +14,7 @@ import viper.silicon.interfaces._
 import viper.silicon.interfaces.decider._
 import viper.silicon.logger.records.data.{DeciderAssertRecord, DeciderAssumeRecord, ProverAssertRecord}
 import viper.silicon.state._
+import viper.silicon.state.terms.sorts.Snap
 import viper.silicon.state.terms.{Term, _}
 import viper.silicon.utils.ast.{extractPTypeFromExp, simplifyVariableName}
 import viper.silicon.verifier.{Verifier, VerifierComponent}
@@ -62,6 +63,7 @@ trait Decider {
   def assume(t: Term, e: Option[ast.Exp], finalExp: Option[ast.Exp]): Unit
   def assume(t: Term, debugExp: Option[DebugExp]): Unit
   def assume(terms: Seq[Term], debugExps: Option[Seq[DebugExp]]): Unit
+  def assumeSortWrapper(t: Term): Term
   def assumeDefinition(t: Term, debugExp: Option[DebugExp]): Unit
   def assume(assumptions: Iterable[(Term, Option[DebugExp])]): Unit
   def assume(assumptions: InsertionOrderedSet[(Term, Option[DebugExp])], enforceAssumption: Boolean = false, isDefinition: Boolean = false): Unit
@@ -286,6 +288,16 @@ trait DefaultDeciderProvider extends VerifierComponent { this: Verifier =>
       } else {
         assume(assumptions=InsertionOrderedSet((t, None)), false, false)
       }
+    }
+
+    def assumeSortWrapper(t: Term): Term = {
+      t match {
+        case s: SortWrapper if s.t.sort == sorts.Snap => assume(IsSortWrapper(s), None)
+        case Combine(s1, s2) => assumeSortWrapper(s1); assumeSortWrapper(s2)
+        case _ =>
+      }
+
+      t
     }
 
     def assume(t: Term, debugExp: Option[DebugExp]): Unit = {

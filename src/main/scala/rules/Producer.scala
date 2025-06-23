@@ -359,10 +359,11 @@ object producer extends ProductionRules {
               if (s2.qpPredicates.contains(predicate)) {
                 val formalArgs = s2.predicateFormalVarMap(predicate)
                 val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
+                v2.decider.assumeSortWrapper(toSnapTree(tArgs))
                 quantifiedChunkSupporter.produceSingleLocation(
                   s2, predicate, formalArgs, Option.when(withExp)(predicate.formalArgs), tArgs, eArgsNew, snap, gain, gainExp, trigger, v2)(Q)
               } else {
-                val snap1 = snap.convert(sorts.Snap)
+                val snap1 = v2.decider.assumeSortWrapper(snap.convert(sorts.Snap))
                 val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, eArgsNew, snap1, None, gain, gainExp)
                 chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) => {
                   if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder
@@ -400,6 +401,7 @@ object producer extends ProductionRules {
                 s1, wand, formalVars, relevantChunks, v1)
             val argsStr = bodyVarsNew.mkString(", ")
             val debugExp = Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${ch.id.toString}($argsStr))", isInternal_ = true))
+            v1.decider.assumeSortWrapper(toSnapTree(args))
             v1.decider.assume(PredicateTrigger(ch.id.toString, smDef1.sm, args), debugExp)
             smCache1
           } else {
