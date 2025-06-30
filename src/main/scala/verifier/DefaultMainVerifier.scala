@@ -242,6 +242,10 @@ class DefaultMainVerifier(config: Config,
       logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
       setErrorScope(results, function)
     })
+    if(h.isDefined) {
+      functionsSupporter.defineFunctionsOfHeight(h.get)
+    }
+
 
     val predicateVerificationResults = predicateSupporter.units.toList flatMap (predicate => {
       val startTime = System.currentTimeMillis()
