@@ -114,7 +114,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     private def generateFunctionSymbolsAfterAnalysis: Iterable[Either[String, Decl]] = (
          Seq(Left("Declaring symbols related to program functions (from program analysis)"))
       ++ functionData.values.flatMap(data =>
-            Seq(data.function, data.limitedFunction, data.statelessFunction, data.preconditionFunction).map(FunctionDecl)
+            Seq(data.limitedFunction, data.statelessFunction, data.preconditionFunction).map(FunctionDecl)
          ).map(Right(_))
     )
 
@@ -175,7 +175,6 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
           result1
 
         case (result1, phase1data) =>
-          emitAndRecordFunctionAxioms(data.limitedAxiom)
           emitAndRecordFunctionAxioms(data.triggerAxiom)
           emitAndRecordFunctionAxioms(data.postAxiom.toSeq: _*)
           emitAndRecordFunctionAxioms(data.postPreconditionPropagationAxiom: _*)
@@ -191,7 +190,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
               case fatalResult: FatalResult =>
                 data.verificationFailures = data.verificationFailures :+ fatalResult
               case _ =>
-                emitAndRecordFunctionAxioms(data.bodyPreconditionPropagationAxiom: _*)
+               // emitAndRecordFunctionAxioms(data.bodyPreconditionPropagationAxiom: _*)
             }
 
             result1 && result2
@@ -267,7 +266,9 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
               decider.assume(BuiltinEquals(data.formalResult, tBody), debugExp)
               consumes(s2, posts, false, postconditionViolated, v)((s3, _, _) => {
                 recorders :+= s3.functionRecorder
-                Success()})})})}
+                Success()})})
+          })
+      }
 
       data.advancePhase(recorders)
 
@@ -308,9 +309,16 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       freshVars foreach (x => sink.declare(ConstDecl(x)))
     }
 
-    // TODO jga mutual recursion -> define all functions together
+    def defineFunctionsOfHeight(height: Int): Unit = {
+      val decls = functionData.filter(d => d._2.height == height).values.map(data => data.functionDeclaration())
+      decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
+      decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
+    }
+
     def defineFunctionsAfterVerification(sink: ProverLike): Unit = {
-      functionData.values.foreach(data => sink.declare(data.functionDeclaration(data.optBody)))
+      val decls = functionData.values.map(data => data.functionDeclaration())
+      decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => sink.declare(decl))
+      sink.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
     val axiomsAfterVerification: Iterable[Term] = emittedFunctionAxioms

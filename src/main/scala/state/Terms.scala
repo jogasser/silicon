@@ -12,7 +12,7 @@ import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.{Map, Stack, state, toMap}
-import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SortBasedIdentifier}
+import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SimpleIdentifier, SortBasedIdentifier}
 import viper.silicon.verifier.Verifier
 import viper.silver.utility.Common.Rational
 
@@ -123,6 +123,15 @@ object FunctionDef extends CondFlyweightFactory[(Function, Seq[Var], Term), Func
 class FunctionDef (val func: Function, val args: Seq[Var], val body: Term) extends Decl with ConditionalFlyweight[(Function, Seq[Var], Term), FunctionDef] {
   val id: Identifier = func.id
   override val equalityDefiningMembers: (Function, Seq[Var], Term) = (func, args, body)
+}
+
+class FunctionDefs (val funcDefs: Seq[FunctionDef]) extends Decl with ConditionalFlyweight[Seq[FunctionDef], FunctionDefs] {
+  val id: Identifier = SimpleIdentifier("")
+  override val equalityDefiningMembers: Seq[FunctionDef] = funcDefs
+}
+
+object FunctionDefs extends CondFlyweightFactory[Seq[FunctionDef], FunctionDefs, FunctionDefs] {
+  override def actualCreate(args: Seq[FunctionDef]): FunctionDefs = new FunctionDefs(args)
 }
 
 object FunctionDecl extends CondFlyweightFactory[Function, FunctionDecl, FunctionDecl] {

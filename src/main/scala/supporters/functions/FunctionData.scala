@@ -266,8 +266,8 @@ class FunctionData(val programFunction: ast.Function,
     expressionTranslator.translate(program, programFunction, this)
   }
 
-  def functionDeclaration(body: Option[Term]): Decl = {
-    if (body.isEmpty) FunctionDecl(function) else FunctionDef(function, arguments, body.get)
+  def functionDeclaration(): Decl = {
+    if (optBody.isEmpty) FunctionDecl(function) else FunctionDef(function, arguments, optBody.get)
   }
 
   lazy val definitionalAxiom: Option[Term] = {

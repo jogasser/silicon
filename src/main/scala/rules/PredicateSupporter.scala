@@ -79,7 +79,6 @@ object predicateSupporter extends PredicateSupportRules {
       }
       val s2 = s1a.setConstrainable(constrainableWildcards, false)
       if (s2.qpPredicates.contains(predicate)) {
-       // TODO v.decider.assume
         val predSnap = v.decider.assumeSortWrapper(snap.get.convert(s2.predicateSnapMap(predicate)))
 
         val formalArgs = s2.predicateFormalVarMap(predicate)

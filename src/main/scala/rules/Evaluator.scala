@@ -962,20 +962,24 @@ object evaluator extends EvaluationRules {
               })
               v3.decider.assume(preFApp, preExp)
               val funcAnn = func.info.getUniqueInfo[AnnotationInfo]
+
+
+              // TODO jga compare function heights wenn >/<, use fun, else limited.
+              val fun = v3.symbolConverter.toFunction(func);
+              val funToCall = s3.currentMember.get match {
+                case function: ast.Function if s3.functionData(function).height >= s3.functionData(func).height => functionSupporter.limitedVersion(fun)
+                case _ => fun
+              }
+
               val tFApp = funcAnn match {
                 case Some(a) if a.values.contains("opaque") =>
                   val funcAppAnn = fapp.info.getUniqueInfo[AnnotationInfo]
                   val fun = v3.symbolConverter.toFunction(func);
                   funcAppAnn match {
-                    case Some(a) if a.values.contains("reveal") => App(fun, snap1 :: tArgs)
-                    case _ => App(
-                      // TODO jgacompare function heights wenn >/<, use fun, else limited.
-                      // s3.functionData(s3.currentMember).height > s3.functionData(func).height
-                      if (s3.currentMember.isInstanceOf[Function]) functionSupporter.limitedVersion(fun) else fun,
-                      snap1 :: tArgs
-                    )
+                    case Some(a) if a.values.contains("reveal") => App(funToCall, snap1 :: tArgs)
+                    case _ => App(funToCall, snap1 :: tArgs)
                   }
-                case _ => App(v3.symbolConverter.toFunction(func), snap1 :: tArgs)
+                case _ => App(funToCall, snap1 :: tArgs)
               }
               val fr5 =
                 s4.functionRecorder.changeDepthBy(-1)
