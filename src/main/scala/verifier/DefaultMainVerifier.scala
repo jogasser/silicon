@@ -224,8 +224,6 @@ class DefaultMainVerifier(config: Config,
     var h: Option[Int] = None
     val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
       if(h.isDefined && functionData(function).height < h.get) {
-        logger.info("Height: " + h)
-        logger.info("Function Height: " + functionData(function).height)
         functionsSupporter.defineFunctionsOfHeight(h.get)
       }
 

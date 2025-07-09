@@ -181,6 +181,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
           this.postConditionAxioms = this.postConditionAxioms ++ data.postAxiom.toSeq
 
           if (function.body.isEmpty) {
+            data.advancePhase(Seq())
             result1
           } else {
             /* Phase 2: Verify the function's postcondition */
@@ -310,7 +311,9 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     }
 
     def defineFunctionsOfHeight(height: Int): Unit = {
-      val decls = functionData.filter(d => d._2.height == height).values.map(data => data.functionDeclaration())
+      val decls = functionData.filter(d => d._2.height == height).values.map(data => {
+        data.functionDeclaration()
+      })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
