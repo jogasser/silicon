@@ -956,50 +956,53 @@ object evaluator extends EvaluationRules {
                                s2.assertReadAccessOnly /* should currently always be false */ else true)
             consumes(s3, pres, true, _ => pvePre, v2)((s4, snap, v3) => {
               val snap1 = v.decider.assumeSortWrapper(snap.get.convert(sorts.Snap))
-              //val preFApp = App(functionSupporter.preconditionVersion(v3.symbolConverter.toFunction(func)), snap1 :: tArgs)
-              //val preExp = Option.when(withExp)({
-              //  DebugExp.createInstance(Some(s"precondition of ${func.name}(${eArgsNew.get.mkString(", ")}) holds"), None, None, InsertionOrderedSet.empty)
-              //})
-              //v3.decider.assume(preFApp, preExp)
               val funcAnn = func.info.getUniqueInfo[AnnotationInfo]
+              def getFApp(fun: Function, args: Seq[Term]): Term = {
+                funcAnn match {
+                  case Some(a) if a.values.contains("opaque") =>
+                    val funcAppAnn = fapp.info.getUniqueInfo[AnnotationInfo]
+                    funcAppAnn match {
+                      case Some(a) if a.values.contains("reveal") => App(fun, args)
+                      case _ => App(fun, args )
+                    }
+                  case _ => App(fun, args)
+                }
+              }
 
               val fun = v3.symbolConverter.toFunction(func);
-              val funToCall = s3.currentMember.get match {
-                case function: ast.Function if s3.functionData(function).height >= s3.functionData(func).height => functionSupporter.limitedVersion(fun)
-                case _ => fun
+              val res = if(s3.functionData(func).phase == 0) {
+                val r = v3.decider.fresh(func.result)
+                v3.decider.assume(Equals(r._1, getFApp(functionSupporter.limitedVersion(fun), snap1 :: tArgs)), None)
+                r
+              } else {
+                val funToCall = s3.functionData(func).phase match {
+                  case 1 => functionSupporter.postconditionVersion(fun)
+                  case _ => functionSupporter.definitionalVersion(fun)
+                }
+                val r = v3.decider.fresh(func.result)
+                val finalArgs = snap1 :: tArgs.appended(r._1)
+                v3.decider.assume(getFApp(funToCall, finalArgs), None)
+
+                r
               }
 
-              val tFApp = funcAnn match {
-                case Some(a) if a.values.contains("opaque") =>
-                  val funcAppAnn = fapp.info.getUniqueInfo[AnnotationInfo]
-                  funcAppAnn match {
-                    case Some(a) if a.values.contains("reveal") => App(funToCall, snap1 :: tArgs)
-                    case _ => App(funToCall, snap1 :: tArgs)
-                  }
-                case _ => App(funToCall, snap1 :: tArgs)
-              }
               val fr5 =
-                s4.functionRecorder.changeDepthBy(-1)
-                  .recordSnapshot(fapp, v3.decider.pcs.branchConditions, snap1)
-              val res = v3.decider.fresh(func.result)
-              v3.decider.assume(Equals(res._1, tFApp), None)
-              val gRes = Store(Seq(func.result -> res).toMap)
-              val s5 = s4.copy(g = s2.g + gRes,
-                h = s2.h,
-                recordVisited = s2.recordVisited,
-                functionRecorder = fr5,
-                smDomainNeeded = s2.smDomainNeeded,
-                moreJoins = s2.moreJoins,
-                assertReadAccessOnly = s2.assertReadAccessOnly)
+                s4.functionRecorder.changeDepthBy(-1).recordSnapshot(fapp, v3.decider.pcs.branchConditions, snap1)
               val funcAppNew = eArgsNew.map(args => ast.FuncApp(funcName, args)(fapp.pos, fapp.info, fapp.typ, fapp.errT))
               val funcAppNewOld = Option.when(withExp)({
-                if (s5.isEvalInOld || pres.forall(_.isPure)) funcAppNew.get
+                if (s4.isEvalInOld || pres.forall(_.isPure)) funcAppNew.get
                 else ast.DebugLabelledOld(funcAppNew.get, debugLabel)(fapp.pos, fapp.info, fapp.errT)
               })
 
-              produces(s5, freshSnap, func.posts, _ => pvePre, v3)((s6, v4) => {
-                QB(s6, (res._1, funcAppNewOld), v4)
-              })
+              val s5 = s4.copy(
+                g = s2.g,
+                h = s2.h,
+                functionRecorder = fr5,
+                recordVisited = s2.recordVisited,
+                smDomainNeeded = s2.smDomainNeeded,
+                moreJoins = s2.moreJoins,
+                assertReadAccessOnly = s2.assertReadAccessOnly)
+              QB(s5, (res._1, funcAppNewOld), v3)
             })
             /* TODO: The join-function is heap-independent, and it is not obvious how a
              *       joined snapshot could be defined and represented

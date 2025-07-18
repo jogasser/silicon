@@ -40,7 +40,8 @@ object FunctionPreconditionTransformer {
           Quantification(Forall, vars, tBody, triggers, name, isGlobal, weight)
         }
       case App(hdf@HeapDepFun(_, _, _), args)  =>
-          And(args.map(transform(_, p)) :+ App(functionSupporter.preconditionVersion(hdf), args))
+        // TODO jga ???
+          And(args.map(transform(_, p)) :+ App(functionSupporter.limitedVersion(hdf), args))
       case other => And(other.subterms.map(transform(_, p)))
     }
     res

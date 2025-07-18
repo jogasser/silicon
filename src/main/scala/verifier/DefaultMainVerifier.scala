@@ -221,27 +221,38 @@ class DefaultMainVerifier(config: Config,
     /* TODO: A workaround for Silver issue #94. toList must be before flatMap.
      *       Otherwise Set will be used internally and some error messages will be lost.
      */
-    var h: Option[Int] = None
-    val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
-      if(h.isDefined && functionData(function).height < h.get) {
-        functionsSupporter.defineFunctionsOfHeight(h.get)
+    var h1: Option[Int] = None
+    functionsSupporter.units.foreach (function => {
+      if(h1.isDefined && functionData(function).height < h1.get) {
+        functionsSupporter.definePostFunctionsOfHeight(h1.get)
       }
 
-      h = Some(functionData(function).height)
+      h1 = Some(functionData(function).height)
+      functionsSupporter.checkSpecificationWelldefinedness(createInitialState(function, program, functionData, predicateData), function)
+    })
+    if(h1.isDefined) {
+      functionsSupporter.definePostFunctionsOfHeight(h1.get)
+    }
 
+    var h2: Option[Int] = None
+    val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
+      if(h2.isDefined && functionData(function).height < h2.get) {
+        functionsSupporter.defineFunctionsOfHeight(h2.get)
+      }
+
+      h2 = Some(functionData(function).height)
       val startTime = System.currentTimeMillis()
       // TODO inspect height & emit definitions when heights increase
       val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
         .flatMap(extractAllVerificationResults)
-
 
       val elapsed = System.currentTimeMillis() - startTime
       reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results))
       logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
       setErrorScope(results, function)
     })
-    if(h.isDefined) {
-      functionsSupporter.defineFunctionsOfHeight(h.get)
+    if(h2.isDefined) {
+      functionsSupporter.defineFunctionsOfHeight(h2.get)
     }
 
 

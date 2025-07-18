@@ -54,6 +54,8 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     private var emittedFunctionAxioms: Vector[Term] = Vector.empty
     private var freshVars: Vector[Var] = Vector.empty
     private var postConditionAxioms: Vector[Term] = Vector.empty
+    private var phase1Data: Map[ast.Function, (VerificationResult, Seq[Phase1Data])] = Map.empty
+
 
     private val expressionTranslator = {
       def resolutionFailureMessage(exp: ast.Positioned, data: FunctionData): String = (
@@ -114,7 +116,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     private def generateFunctionSymbolsAfterAnalysis: Iterable[Either[String, Decl]] = (
          Seq(Left("Declaring symbols related to program functions (from program analysis)"))
       ++ functionData.values.flatMap(data =>
-            Seq(data.limitedFunction, data.statelessFunction, data.preconditionFunction).map(FunctionDecl)
+            Seq(data.limitedFunction).map(FunctionDecl)
          ).map(Right(_))
     )
 
@@ -151,37 +153,21 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       decider.prover.comment(comment)
 
       openSymbExLogger(function)
-
-      val data = functionData(function)
-      data.formalArgs.values foreach (v => decider.prover.declare(ConstDecl(v)))
-      decider.prover.declare(ConstDecl(data.formalResult))
-
-      val res = Seq(handleFunction(sInit, function))
+      val res = Seq(handleFunction(function))
       symbExLog.closeMemberScope()
       res
     }
 
-    private def handleFunction(sInit: State, function: ast.Function): VerificationResult = {
+    private def handleFunction(function: ast.Function): VerificationResult = {
       val data = functionData(function)
-      val s = sInit.copy(functionRecorder = ActualFunctionRecorder(data),
-        conservingSnapshotGeneration = true,
-        assertReadAccessOnly = !Verifier.config.respectFunctionPrePermAmounts())
-
       /* Phase 1: Check well-definedness of the specifications */
-      checkSpecificationWelldefinedness(s, function) match {
-        case (result1: FatalResult, _) =>
+      phase1Data.get(function) match {
+        case Some((result1: FatalResult, _)) =>
           data.verificationFailures = data.verificationFailures :+ result1
-
           result1
 
-        case (result1, phase1data) =>
-          emitAndRecordFunctionAxioms(data.triggerAxiom)
-          emitAndRecordFunctionAxioms(data.postAxiom.toSeq: _*)
-          emitAndRecordFunctionAxioms(data.postPreconditionPropagationAxiom: _*)
-          this.postConditionAxioms = this.postConditionAxioms ++ data.postAxiom.toSeq
-
+        case Some((result1, phase1data)) =>
           if (function.body.isEmpty) {
-            data.advancePhase(Seq())
             result1
           } else {
             /* Phase 2: Verify the function's postcondition */
@@ -191,29 +177,30 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
               case fatalResult: FatalResult =>
                 data.verificationFailures = data.verificationFailures :+ fatalResult
               case _ =>
-               // emitAndRecordFunctionAxioms(data.bodyPreconditionPropagationAxiom: _*)
             }
-
             result1 && result2
           }
+        case None => throw new RuntimeException("Expected phase 1 data to be present for function " + function.name)
       }
     }
 
-    private def checkSpecificationWelldefinedness(sInit: State, function: ast.Function)
-                                                 : (VerificationResult, Seq[Phase1Data]) = {
+    def checkSpecificationWelldefinedness(sInit: State, function: ast.Function): Unit = {
+      val comment = ("-" * 5) + " Well-definedness of specifications of function " + function.name + ("-" * 5)
+      val data = functionData(function)
+      data.formalArgs.values foreach (v => decider.prover.declare(ConstDecl(v)))
+      decider.prover.declare(ConstDecl(data.formalResult))
 
-      val comment = ("-" * 5) + " Well-definedness of specifications " + ("-" * 5)
       logger.debug(s"\n\n$comment\n")
       decider.prover.comment(comment)
-
-      val data = functionData(function)
       val pres = function.pres
       val posts = function.posts
       val argsStore = data.formalArgs map {
         case (localVar, t) => (localVar, (t, Option.when(evaluator.withExp)(LocalVarWithVersion(simplifyVariableName(t.id.name), localVar.typ)(localVar.pos, localVar.info, localVar.errT))))
       }
       val g = Store(argsStore + (function.result -> (data.formalResult, data.valFormalResultExp)))
-      val s = sInit.copy(g = g, h = Heap(), oldHeaps = OldHeaps())
+      val s = sInit.copy(g = g, h = Heap(), oldHeaps = OldHeaps(), functionRecorder = ActualFunctionRecorder(data),
+        conservingSnapshotGeneration = true,
+        assertReadAccessOnly = !Verifier.config.respectFunctionPrePermAmounts())
 
       var phase1Data: Seq[Phase1Data] = Vector.empty
       var recorders: Seq[FunctionRecorder] = Vector.empty
@@ -230,10 +217,8 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
           produces(s1, freshSnap, posts, ContractNotWellformed, v)((s2, _) => {
             recorders :+= s2.functionRecorder
             Success()})})})
-
       data.advancePhase(recorders)
-
-      (result, phase1Data)
+      this.phase1Data = this.phase1Data + (function -> (result, phase1Data))
     }
 
     private def verify(function: ast.Function, phase1data: Seq[Phase1Data])
@@ -272,13 +257,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       }
 
       data.advancePhase(recorders)
-
       result
-    }
-
-    private def emitAndRecordFunctionAxioms(axiom: Term*): Unit = {
-      decider.prover.assumeAxioms(InsertionOrderedSet(axiom), "Function axioms")
-      emittedFunctionAxioms = emittedFunctionAxioms ++ axiom
     }
 
     private def generateFunctionSymbolsAfterVerification: Iterable[Either[String, Decl]] = {
@@ -311,15 +290,25 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     }
 
     def defineFunctionsOfHeight(height: Int): Unit = {
+      functionData.filter(d => d._2.height == height).foreach(_._2.phase = 2)
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.functionDeclaration()
+        data.recursiveDefinition()
+      })
+      decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
+      decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
+    }
+
+    def definePostFunctionsOfHeight(height: Int): Unit = {
+      functionData.filter(d => d._2.height == height).foreach(_._2.phase = 1)
+      val decls = functionData.filter(d => d._2.height == height).values.map(data => {
+        data.functionPostsDeclaration()
       })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
     def defineFunctionsAfterVerification(sink: ProverLike): Unit = {
-      val decls = functionData.values.map(data => data.functionDeclaration())
+      val decls = functionData.values.filter(_.phase == 2).map(data => data.recursiveDefinition())
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => sink.declare(decl))
       sink.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
