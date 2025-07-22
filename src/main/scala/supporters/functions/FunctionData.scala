@@ -132,6 +132,38 @@ class FunctionData(val programFunction: ast.Function,
       })
   }
 
+  private def generateNestedDefinitionalAxioms: InsertionOrderedSet[Term] = {
+    val freshSymbols: Set[Identifier] = freshSymbolsAcrossAllPhases.map(_.id)
+
+    val nested = (
+      freshFieldInvs.flatMap(_.definitionalAxioms)
+        ++ freshFvfsAndDomains.flatMap (fvfDef => fvfDef.domainDefinitions ++ fvfDef.valueDefinitions)
+        ++ freshConstrainedVars.map(_._2)
+        ++ freshConstraints)
+
+    // Filter out nested definitions that contain free variables.
+    // This should not happen, but currently can, due to bugs in the function axiomatisation code.
+    // Fixing these bugs with the current way functions are axiomatised will be very difficult,
+    // but they should be resolved with Mauro's current work on heap snapshots.
+    // Once his changes are merged in, the commented warnings below should be turned into errors.
+    nested.filter(term => {
+      val freeVars = term.freeVariables -- arguments
+      val unknownVars = freeVars.filterNot(v => freshSymbols.contains(v.id))
+
+      //if (unknownVars.nonEmpty) {
+      //  val messageText = (
+      //      s"Found unexpected free variables $unknownVars "
+      //    + s"in term $term during axiomatisation of function "
+      //    + s"${programFunction.name}")
+      //
+      //  reporter report InternalWarningMessage(messageText)
+      //  logger warn messageText
+      //}
+
+      unknownVars.isEmpty
+    })
+  }
+
   /*
    * Properties resulting from phase 1 (well-definedness checking)
    */
@@ -158,9 +190,10 @@ class FunctionData(val programFunction: ast.Function,
     val combinedPosts = translatedPosts.reduceOption((a, b) => And(a, b)).getOrElse(True)
 
     val apps = combinedPosts.deepCollect({ case d: App if d.applicable.isInstanceOf[HeapDepFun] => d})
-    var i = 0;
+
+    var i = 0
     val resFunMap = apps.map(f => {
-      i += 1;
+      i += 1
       f -> Var(SimpleIdentifier("res" + i), f.sort, false)
     })
     var replacedTerms = combinedPosts.replace(resFunMap.map(_._1), resFunMap.map(_._2))
@@ -195,12 +228,12 @@ class FunctionData(val programFunction: ast.Function,
     combinedTerm = And(Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)), combinedTerm)
 
     if(translatedPres.nonEmpty)
-      combinedTerm = Implies(translatedPres.reduceOption((a, b) => And(a, b)).get, combinedTerm)
+      combinedTerm = And(generateNestedDefinitionalAxioms ++ List(Implies(translatedPres.reduceOption((a, b) => And(a, b)).get, combinedTerm)))
 
     val apps = combinedTerm.deepCollect({ case d: App if d.applicable.isInstanceOf[HeapDepFun] => d})
-    var i = 0;
+    var i = 0
     val resFunMap = apps.map(f => {
-      i += 1;
+      i += 1
       f -> Var(SimpleIdentifier("res" + i), f.sort, false)
     })
 
@@ -210,7 +243,7 @@ class FunctionData(val programFunction: ast.Function,
     resFunMap.foreach(v => {
       val res = v._2
       val args = v._1.args.map(_.replace(resFunMap.map(_._1), resFunMap.map(_._2)))
-      val origFun = v._1.applicable.asInstanceOf[HeapDepFun];
+      val origFun = v._1.applicable.asInstanceOf[HeapDepFun]
       val limitedF = functionSupporter.limitedVersion(origFun)
       val limitedApp = App(limitedF, args)
 
@@ -224,7 +257,7 @@ class FunctionData(val programFunction: ast.Function,
 
   lazy val body: Term = {
     assert(programFunction.body.isEmpty || phase == 2, s"Definitional axiom must be generated in phase 2, current phase is $phase")
-    getBody(false);
+    getBody(false)
   }
 
   def functionPostsDeclaration(): FunctionDef = {

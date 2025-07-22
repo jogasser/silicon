@@ -218,31 +218,30 @@ class DefaultMainVerifier(config: Config,
 
     allProvers.saturate(config.proverSaturationTimeouts.afterPrelude)
 
+    var phase1Height: Option[Int] = None
+    functionsSupporter.units.foreach (function => {
+      if(phase1Height.isDefined && functionData(function).height < phase1Height.get) {
+        functionsSupporter.definePostFunctionsOfHeight(phase1Height.get)
+      }
+
+      phase1Height = Some(functionData(function).height)
+      functionsSupporter.checkSpecificationWelldefinedness(createInitialState(function, program, functionData, predicateData), function)
+    })
+    if(phase1Height.isDefined) {
+      functionsSupporter.definePostFunctionsOfHeight(phase1Height.get)
+    }
+
+    var phase2Height: Option[Int] = None
     /* TODO: A workaround for Silver issue #94. toList must be before flatMap.
      *       Otherwise Set will be used internally and some error messages will be lost.
      */
-    var h1: Option[Int] = None
-    functionsSupporter.units.foreach (function => {
-      if(h1.isDefined && functionData(function).height < h1.get) {
-        functionsSupporter.definePostFunctionsOfHeight(h1.get)
-      }
-
-      h1 = Some(functionData(function).height)
-      functionsSupporter.checkSpecificationWelldefinedness(createInitialState(function, program, functionData, predicateData), function)
-    })
-    if(h1.isDefined) {
-      functionsSupporter.definePostFunctionsOfHeight(h1.get)
-    }
-
-    var h2: Option[Int] = None
     val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
-      if(h2.isDefined && functionData(function).height < h2.get) {
-        functionsSupporter.defineFunctionsOfHeight(h2.get)
+      if(phase2Height.isDefined && functionData(function).height < phase2Height.get) {
+        functionsSupporter.defineFunctionsOfHeight(phase2Height.get)
       }
 
-      h2 = Some(functionData(function).height)
+      phase2Height = Some(functionData(function).height)
       val startTime = System.currentTimeMillis()
-      // TODO inspect height & emit definitions when heights increase
       val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
         .flatMap(extractAllVerificationResults)
 
@@ -251,8 +250,8 @@ class DefaultMainVerifier(config: Config,
       logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
       setErrorScope(results, function)
     })
-    if(h2.isDefined) {
-      functionsSupporter.defineFunctionsOfHeight(h2.get)
+    if(phase2Height.isDefined) {
+      functionsSupporter.defineFunctionsOfHeight(phase2Height.get)
     }
 
 
