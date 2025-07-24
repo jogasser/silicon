@@ -604,6 +604,7 @@ class DefaultMainVerifier(config: Config,
   private def emitSortWrappers(ss: Iterable[Sort], sink: ProverLike): Unit = {
     sink.comment("Declaring sort wrappers")
 
+    // TODO jga: move this to a proper ADT declaration once its ready
     var str = "(declare-datatypes () (($Snap $Snap.unit"
     ss.foreach(sort => {
       val sanitizedSortString = termConverter.convertSanitized(sort)
