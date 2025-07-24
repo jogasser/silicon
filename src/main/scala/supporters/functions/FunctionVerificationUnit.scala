@@ -292,7 +292,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     def defineFunctionsOfHeight(height: Int): Unit = {
       functionData.filter(d => d._2.height == height).foreach(_._2.phase = 2)
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.recursiveDefinition()
+        data.defVersionDef()
       })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
@@ -301,14 +301,14 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     def definePostFunctionsOfHeight(height: Int): Unit = {
       functionData.filter(d => d._2.height == height).foreach(_._2.phase = 1)
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.functionPostsDeclaration()
+        data.postsVersionDef()
       })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
     def defineFunctionsAfterVerification(sink: ProverLike): Unit = {
-      val decls = functionData.values.filter(_.phase == 2).map(data => data.recursiveDefinition())
+      val decls = functionData.values.filter(_.phase == 2).map(data => data.defVersionDef())
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => sink.declare(decl))
       sink.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }

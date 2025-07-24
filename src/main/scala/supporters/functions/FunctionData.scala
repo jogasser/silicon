@@ -8,9 +8,8 @@ package viper.silicon.supporters.functions
 
 import scala.annotation.unused
 import com.typesafe.scalalogging.LazyLogging
-import viper.silicon.state.{FunctionPreconditionTransformer, Identifier, IdentifierFactory, SimpleIdentifier, SymbolConverter}
+import viper.silicon.state.{Identifier, IdentifierFactory, SimpleIdentifier, SymbolConverter}
 import viper.silver.ast
-import viper.silver.ast.utility.Functions
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.FatalResult
 import viper.silicon.rules.{InverseFunctions, SnapshotMapDefinition, functionSupporter}
@@ -21,7 +20,6 @@ import viper.silicon.utils.ast.simplifyVariableName
 import viper.silicon.verifier.Verifier
 import viper.silicon.{Config, Map, toMap}
 import viper.silver.ast.LocalVarWithVersion
-import viper.silver.parser.PUnknown
 import viper.silver.reporter.Reporter
 
 /* TODO: Refactor FunctionData!
@@ -168,86 +166,63 @@ class FunctionData(val programFunction: ast.Function,
    * Properties resulting from phase 1 (well-definedness checking)
    */
 
-  lazy val translatedPosts = {
-    //assert(phase == 1, s"Postcondition axiom must be generated in phase 1, current phase is $phase")
-    if (programFunction.posts.nonEmpty) {
-      expressionTranslator.translatePostcondition(program, programFunction.posts, this)
-    } else {
-      Seq()
-    }
+  private lazy val translatedPosts = {
+    assert(phase == 1 || phase == 2, s"Postcondition axiom must be generated in phase 1 or 2, current phase is $phase")
+    expressionTranslator.translatePostcondition(program, programFunction.posts, this)
   }
 
-  lazy val translatedPres = {
-    //assert(phase == 1, s"Postcondition axiom must be generated in phase 1, current phase is $phase")
-    if (programFunction.pres.nonEmpty) {
-      expressionTranslator.translatePrecondition(program, programFunction.pres, this)
-    } else {
-      Seq()
-    }
+  private lazy val translatedPres = {
+    assert(phase == 1 || phase == 2, s"Precondition axiom must be generated in phase 1 or 2, current phase is $phase")
+    expressionTranslator.translatePrecondition(program, programFunction.pres, this)
   }
 
-  lazy val posts: Term = {
-    val combinedPosts = translatedPosts.reduceOption((a, b) => And(a, b)).getOrElse(True)
-
-    val apps = combinedPosts.deepCollect({ case d: App if d.applicable.isInstanceOf[HeapDepFun] => d})
-
-    var i = 0
-    val resFunMap = apps.map(f => {
-      i += 1
-      f -> Var(SimpleIdentifier("res" + i), f.sort, false)
-    })
-    var replacedTerms = combinedPosts.replace(resFunMap.map(_._1), resFunMap.map(_._2))
-
-    resFunMap.foreach(v => {
-      val res = v._2
-      val limitedF = functionSupporter.limitedVersion(v._1.applicable.asInstanceOf[HeapDepFun])
-
-      val limitedApp = App(limitedF, v._1.args)
-      val app = App(functionSupporter.postconditionVersion(v._1.applicable.asInstanceOf[HeapDepFun]), v._1.args.appended(res))
-
-      replacedTerms = Let(res, limitedApp, And(replacedTerms, app))
-    })
-
-    replacedTerms
-  }
-
-  def getBody(usePosts: Boolean): Term = {
-    val combinedPosts = translatedPosts.reduceOption((a, b) => And(a, b))
+  private lazy val definitionalBody: Term = {
+    assert(phase == 2, s"Definitional function must be generated in phase 2, current phase is $phase")
     val body = expressionTranslator.translate(program, programFunction, this).map(b => Equals(formalResult, b))
-    var combinedTerm =
-      if(body.isDefined && combinedPosts.isDefined)
-        And(body.get, combinedPosts.get)
-      else if(body.isDefined)
-        body.get
-      else if(combinedPosts.isDefined)
-        combinedPosts.get
-      else
-        True
-
-    // By assigning to the limited function we make sure our function wrapper preserves x == y when we define x = fun(a) and y = fun(a)
-    combinedTerm = And(Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)), combinedTerm)
+    var combinedTerm = And(body.map(_ +: translatedPosts).getOrElse(translatedPosts))
 
     if(translatedPres.nonEmpty)
-      combinedTerm = And(generateNestedDefinitionalAxioms ++ List(Implies(translatedPres.reduceOption((a, b) => And(a, b)).get, combinedTerm)))
+      combinedTerm = Implies(And(translatedPres), combinedTerm)
 
-    val apps = combinedTerm.deepCollect({ case d: App if d.applicable.isInstanceOf[HeapDepFun] => d})
+    // add nested definitional axioms & ensure result is an actual function result
+    combinedTerm = And(
+        generateNestedDefinitionalAxioms ++ List(
+          Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)),
+          combinedTerm
+        )
+    )
+
+    transformAllFunctionCalls(combinedTerm, functionSupporter.definitionalVersion)
+  }
+
+  private lazy val postsBody: Term = {
+    assert(phase == 1, s"Postcondition function must be generated in phase 1, current phase is $phase")
+    var combinedTerm = And(translatedPosts);
+
+    if(translatedPres.nonEmpty)
+      combinedTerm = Implies(And(translatedPres), combinedTerm)
+
+    combinedTerm = And(Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)), combinedTerm)
+    transformAllFunctionCalls(combinedTerm, functionSupporter.postconditionVersion)
+  }
+
+  def transformAllFunctionCalls(term: Term, transformer: HeapDepFun => HeapDepFun): Term = {
+    val apps = term.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] &&  app.applicable.asInstanceOf[HeapDepFun] != functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]) => app})
     var i = 0
     val resFunMap = apps.map(f => {
       i += 1
-      f -> Var(SimpleIdentifier("res" + i), f.sort, false)
+      f -> Var(SimpleIdentifier("res@" + f.applicable.id.name + "@" + i), f.sort, false)
     })
 
-
-    var replacedTerms = combinedTerm.replace(resFunMap.map(_._1), resFunMap.map(_._2))
+    var replacedTerms = term.replace(resFunMap.map(_._1), resFunMap.map(_._2))
 
     resFunMap.foreach(v => {
       val res = v._2
       val args = v._1.args.map(_.replace(resFunMap.map(_._1), resFunMap.map(_._2)))
       val origFun = v._1.applicable.asInstanceOf[HeapDepFun]
-      val limitedF = functionSupporter.limitedVersion(origFun)
-      val limitedApp = App(limitedF, args)
+      val limitedApp = App(functionSupporter.limitedVersion(origFun), args)
 
-      val funToCall = if (usePosts) functionSupporter.postconditionVersion(origFun) else functionSupporter.definitionalVersion(origFun)
+      val funToCall = transformer(origFun)
       val app = App(funToCall, args.appended(res))
       replacedTerms = Let(res, limitedApp, And(replacedTerms, app))
     })
@@ -255,16 +230,11 @@ class FunctionData(val programFunction: ast.Function,
     replacedTerms
   }
 
-  lazy val body: Term = {
-    assert(programFunction.body.isEmpty || phase == 2, s"Definitional axiom must be generated in phase 2, current phase is $phase")
-    getBody(false)
+  def postsVersionDef(): FunctionDef = {
+    FunctionDef(functionSupporter.postconditionVersion(function), arguments ++ Seq(formalResult), postsBody)
   }
 
-  def functionPostsDeclaration(): FunctionDef = {
-    FunctionDef(functionSupporter.postconditionVersion(function), arguments ++ Seq(formalResult), posts)
-  }
-
-  def recursiveDefinition(): FunctionDef = {
-    FunctionDef(functionSupporter.definitionalVersion(function), arguments ++ Seq(formalResult), body)
+  def defVersionDef(): FunctionDef = {
+    FunctionDef(functionSupporter.definitionalVersion(function), arguments ++ Seq(formalResult), definitionalBody)
   }
 }
