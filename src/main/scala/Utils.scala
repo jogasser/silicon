@@ -23,7 +23,7 @@ import scala.collection.immutable.ArraySeq
 
 package object utils {
   def freshSnap: (Sort, Verifier) => Var = (sort, v) => v.decider.fresh(sort, Option.when(Verifier.config.enableDebugging())(PUnknown()))
-  def toSf(t: Term): (Sort, Verifier) => Term = (sort, _) => t.convert(sort)
+  def toSf(t: Term): (Sort, Verifier) => Term = (sort, v) => v.decider.assumeSortWrapper(t.convert(sort))
 
   def mapReduceLeft[E](it: Iterable[E], f: E => E, op: (E, E) => E, unit: E): E =
     if (it.isEmpty)

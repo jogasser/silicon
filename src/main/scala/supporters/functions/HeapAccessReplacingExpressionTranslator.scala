@@ -144,15 +144,7 @@ class HeapAccessReplacingExpressionTranslator(symbolConverter: SymbolConverter,
         }
         val args = eFApp.args map (arg => translate(arg))
         val snap = getOrFail(data.fappToSnap, eFApp, sorts.Snap, Option.when(Verifier.config.enableDebugging())(PUnknown()))
-        val fapp = App(fun, snap +: args)
-
-        val callerHeight = data.height
-        val calleeHeight = functionData(eFApp.func(program)).height
-
-        if (callerHeight < calleeHeight)
-          fapp
-        else
-          fapp.copy(applicable = functionSupporter.limitedVersion(fun))
+        App(fun, snap +: args)
 
       case _ => super.translate(symbolConverter.toSort)(e)
     }

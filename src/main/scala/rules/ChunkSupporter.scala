@@ -82,7 +82,7 @@ object chunkSupporter extends ChunkSupportRules {
     consume2(s, h, resource, args, argsExp, perms, permsExp, returnSnap, ve, v)((s2, h2, optSnap, v2) =>
       optSnap match {
         case Some(snap) =>
-          Q(s2, h2, Some(snap.convert(sorts.Snap)), v2)
+          Q(s2, h2, Some(v2.decider.assumeSortWrapper(snap.convert(sorts.Snap))), v2)
         case None if returnSnap =>
           /* Not having consumed anything could mean that we are in an infeasible
            * branch, or that the permission amount to consume was zero.
@@ -134,7 +134,7 @@ object chunkSupporter extends ChunkSupportRules {
                   if (v1.decider.check(IsPositive(perms), Verifier.config.checkTimeout())) {
                     Some(ch.snap)
                   } else {
-                    Some(Ite(IsPositive(perms), ch.snap.convert(sorts.Snap), Unit))
+                    Some(Ite(IsPositive(perms), v.decider.assumeSortWrapper(ch.snap.convert(sorts.Snap)), Unit))
                   }
                 case _ => None
               }
