@@ -15,13 +15,13 @@ object functionSupporter {
     HeapDepFun(id, function.argSorts, function.resultSort)
   }
 
-  def statelessVersion(function: HeapDepFun): Fun = {
-    val id = function.id.withSuffix("%", "stateless")
-    Fun(id, function.argSorts.tail, terms.sorts.Bool)
+  def postconditionVersion(function: HeapDepFun): HeapDepFun = {
+    val id = function.id.withSuffix("%", "posts")
+    HeapDepFun(id, function.argSorts ++ Seq(function.resultSort), terms.sorts.Bool)
   }
 
-  def preconditionVersion(function: HeapDepFun): HeapDepFun = {
-    val id = function.id.withSuffix("%", "precondition")
-    HeapDepFun(id, function.argSorts, terms.sorts.Bool)
+  def definitionalVersion(function: HeapDepFun): HeapDepFun = {
+    val id = function.id.withSuffix("%", "def")
+    HeapDepFun(id, function.argSorts ++ Seq(function.resultSort), terms.sorts.Bool)
   }
 }

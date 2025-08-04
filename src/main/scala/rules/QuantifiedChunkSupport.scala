@@ -506,6 +506,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
         // including necessary sort wrapper applications
         val snapToCodomainTermsSubstitution: Map[Term, Term] =
         codomainQVars.zip(fromSnapTree(qvar, codomainQVars)).to(Map)
+    snapToCodomainTermsSubstitution.values.collect({ case s: SortWrapper => s }).foreach(s => v.decider.assumeSortWrapper(s))
 
         // Rewrite c(r_1, r_2, ...) to c(first(s), second(s), ...)
         val transformedOptSmDomainDefinitionCondition =
@@ -528,6 +529,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
 
     val valueDefinitions =
       relevantChunks map (chunk => {
+        v.decider.assumeSortWrapper(toSnapTree(Seq(qvar)))
         val lookupSummary = ResourceLookup(resource, sm, Seq(qvar), s.program)
         val lookupChunk = ResourceLookup(resource, chunk.snapshotMap, Seq(qvar), s.program)
 
@@ -559,6 +561,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
       case r => r
     }
     val resourceAndValueDefinitions = if (s.heapDependentTriggers.contains(resourceIdentifier)) {
+      v.decider.assumeSortWrapper(toSnapTree(Seq(qvar)))
       val resourceTriggerDefinition =
         Forall(
           qvar,
@@ -599,6 +602,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
 
     val pm = freshPermMap(resource, Seq(), v)
 
+    v.decider.assumeSortWrapper(toSnapTree(codomainQVars))
     val permSummary = ResourcePermissionLookup(resource, pm, codomainQVars, s.program)
 
     val valueDefinitions =
@@ -614,6 +618,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
       case r => r
     }
     val resourceAndValueDefinitions = if (s.heapDependentTriggers.contains(resourceIdentifier)){
+      v.decider.assumeSortWrapper(toSnapTree(codomainQVars))
       val resourceTriggerFunction = ResourceTriggerFunction(resource, smDef.sm, codomainQVars, s.program)
 
       // TODO: Quantify over snapshot if resource is predicate.
@@ -668,6 +673,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
 
     val additionalSmArgs = s.relevantQuantifiedVariables(arguments).map(_._1)
     val sm = freshSnapshotMap(s, resource, additionalSmArgs, v)
+    v.decider.assumeSortWrapper(toSnapTree(arguments))
     val smValueDef = BuiltinEquals(ResourceLookup(resource, sm, arguments, s.program), value)
 
     (sm, smValueDef)
@@ -875,8 +881,10 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
             case pt: PredicateTrigger =>
               resource match {
                 case p: ast.Predicate if pt.predname == p.name =>
+                  v.decider.assumeSortWrapper(toSnapTree(pt.args))
                   PredicateTrigger(pt.predname, tSnap, pt.args)
                 case wand: ast.MagicWand if pt.predname == MagicWandIdentifier(wand, s.program).toString =>
+                  v.decider.assumeSortWrapper(toSnapTree(pt.args))
                   PredicateTrigger(pt.predname, tSnap, pt.args)
                 case _ => pt
               }
@@ -996,6 +1004,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
               val (smDef1, smCache1) =
                 quantifiedChunkSupporter.summarisingSnapshotMap(
                   s, resource, codomainVars, relevantChunks, v)
+              v.decider.assumeSortWrapper(toSnapTree(codomainVars))
               val trigger = ResourceTriggerFunction(resource, smDef1.sm, codomainVars, s.program)
               val qvarsToInv = inv.qvarsToInversesOf(codomainVars)
               val condOfInv = tCond.replace(qvarsToInv)
@@ -1178,6 +1187,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
           val (smDef1, smCache1) =
             quantifiedChunkSupporter.summarisingSnapshotMap(
               s, resource, formalQVars, relevantChunks, v)
+          v.decider.assumeSortWrapper(toSnapTree(tArgs))
           (And(tCond, ResourceTriggerFunction(resource, smDef1.sm, tArgs, s.program)), smCache1, Some(smDef1))
         } else {
           (tCond, s.smCache, None)
@@ -1293,7 +1303,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                 (result, s4, h2, Some(consumedChunk))
               })((s4, optCh, v3) =>
                 optCh match {
-                  case Some(ch) if returnSnap => Q(s4, s4.h, Some(ch.snapshotMap.convert(sorts.Snap)), v3)
+                  case Some(ch) if returnSnap => Q(s4, s4.h, Some(v3.decider.assumeSortWrapper(ch.snapshotMap.convert(sorts.Snap))), v3)
                   case None if returnSnap =>
                     Q(s4, s4.h, Some(freshSnap(sorts.Snap, v3)), v3)
                   case _ => Q(s4, s4.h, None, v3)
@@ -1331,7 +1341,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                       partiallyConsumedHeap = Some(h3),
                       constrainableARPs = s.constrainableARPs,
                       smCache = smCache2)
-                    Q(s3, h3, Some(smDef2.sm.convert(sorts.Snap)), v)
+                    Q(s3, h3, Some(v.decider.assumeSortWrapper(smDef2.sm.convert(sorts.Snap))), v)
                   } else {
                     Q(s2, h3, None, v)
                   }
@@ -1418,7 +1428,8 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
       })((s4, optCh, v2) =>
         optCh match {
           case Some(ch) if returnSnap =>
-            val snap = ResourceLookup(resource, ch.snapshotMap, arguments, s4.program).convert(sorts.Snap)
+            v2.decider.assumeSortWrapper(toSnapTree(arguments))
+            val snap = v2.decider.assumeSortWrapper(ResourceLookup(resource, ch.snapshotMap, arguments, s4.program).convert(sorts.Snap))
             Q(s4, s4.h, Some(snap), v2)
           case None if returnSnap =>
             Q(s4, s4.h, Some(freshSnap(sorts.Snap, v2)), v2)
@@ -1458,7 +1469,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                 v = v)
             val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFvfAndDomain(smDef1),
               smCache = smCache1)
-            val snap = ResourceLookup(resource, smDef1.sm, arguments, s2.program).convert(sorts.Snap)
+            val snap = v.decider.assumeSortWrapper(ResourceLookup(resource, smDef1.sm, arguments, s2.program).convert(sorts.Snap))
             Q(s2, h1, Some(snap), v)
           } else {
             Q(s1, h1, None, v)
@@ -2062,6 +2073,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
 
   // Based on StateConsolidator#combineSnapshots
   override def combinePredicateSnapshotMaps(fr: FunctionRecorder, predicate: String, qVars: Seq[Var], fqvars: Seq[Var], t1: Term, t2: Term, p1: Term, p2: Term, v: Verifier): (FunctionRecorder, Term, Term) = {
+    v.decider.assumeSortWrapper(toSnapTree(qVars))
     val lookupT1 = PredicateLookup(predicate, t1, qVars)
     val lookupT2 = PredicateLookup(predicate, t2, qVars)
     val (fr2, sm, smDef, triggers) = (IsPositive(p1), IsPositive(p2)) match {

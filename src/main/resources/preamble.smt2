@@ -8,12 +8,6 @@
 ;            one tab or two spaces. All other lines must not start with tabs
 ;            or more than one space.
 
-; --- Snapshots ---
-
-(declare-datatypes (($Snap 0)) ((
-    ($Snap.unit)
-    ($Snap.combine ($Snap.first $Snap) ($Snap.second $Snap)))))
-
 ; --- References ---
 
 (declare-sort $Ref 0)

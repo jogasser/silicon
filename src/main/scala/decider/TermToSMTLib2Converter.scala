@@ -97,6 +97,19 @@ class TermToSMTLib2Converter
       val bodyDoc = render(body)
 
       parens(text("define-fun") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
+    case FunctionDef(func, args, body) =>
+      val idDoc = render(func.id)
+      val argDocs = (args map (v => parens(text(render(v.id)) <+> render(v.sort)))).to(collection.immutable.Seq)
+      val bodyDoc = render(body)
+      val bodySortDoc = render(body.sort)
+      parens(text("define-fun-rec") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
+    case FunctionDefs(funcs) =>
+      val funDefs = funcs map (f => {
+        val args = (f.args map (v => parens(text(render(v.id)) <+> render(v.sort)))).to(collection.immutable.Seq)
+        parens(text(render(f.id)) <+> parens(ssep(args, space)) <+> render(f.body.sort))
+      });
+      val bodies = funcs map (f => render(f.body))
+      parens(text("define-funs-rec") <+> parens(ssep(funDefs, line)) <+> parens(ssep(bodies, line)))
   }
 
   def convert(t: Term): String = {
@@ -181,6 +194,7 @@ class TermToSMTLib2Converter
       case _: sorts.Map => renderApp("Map_equal", Seq(bop.p0, bop.p1), bop.sort)
       case sort => sys.error(s"Don't know how to translate equality between symbols $sort-typed terms")
     }
+    case IsSortWrapper(SortWrapper(t, to)) => parens(parens(text("_ is ") <> render(SortWrapperId(to, t.sort))) <+> convert(t))
 
     /* Arithmetic */
 
