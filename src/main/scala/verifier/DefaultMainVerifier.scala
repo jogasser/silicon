@@ -25,7 +25,8 @@ import viper.silicon.interfaces.decider.ProverLike
 import viper.silicon.logger.{MemberSymbExLogger, SymbExLogger}
 import viper.silicon.reporting.{MultiRunRecorders, condenseToViperResult}
 import viper.silicon.state._
-import viper.silicon.state.terms.{Decl, Sort, Term, sorts}
+import viper.silicon.state.terms.sorts.Snap
+import viper.silicon.state.terms.{AdtDecl, AdtDecls, Decl, Sort, Term, sorts}
 import viper.silicon.supporters.{AnnotationSupporter, DefaultDomainsContributor, DefaultMapsContributor, DefaultMultisetsContributor, DefaultPredicateVerificationUnitProvider, DefaultSequencesContributor, DefaultSetsContributor, MagicWandSnapFunctionsContributor, PredicateData}
 import viper.silicon.supporters.qps._
 import viper.silicon.supporters.functions.{DefaultFunctionVerificationUnitProvider, FunctionData}
@@ -34,6 +35,7 @@ import viper.silver.ast.utility.rewriter.Traverse
 import viper.silver.ast.{BackendType, Member}
 import viper.silver.cfg.silver.SilverCfg
 import viper.silver.frontend.FrontendStateCache
+import viper.silver.plugin.standard.adt.Adt
 import viper.silver.reporter._
 import viper.silver.verifier.VerifierWarning
 
@@ -557,6 +559,11 @@ class DefaultMainVerifier(config: Config,
 
     emitSortWrappers(collectedSorts, sink)
 
+    // TODO: Top level declarations?
+    val adts = program.extensions.collect { case t: Adt => t }
+    sink.comment("/" * 10 + " User defined Adts")
+    emitDataTypes(adts, sink)
+
     sink.comment("/" * 10 + " Symbols")
     symbolDeclarationOrder foreach (component =>
       component.declareSymbolsAfterAnalysis(sink))
@@ -576,20 +583,33 @@ class DefaultMainVerifier(config: Config,
     (functionData, predicateData)
   }
 
+  private def emitDataTypes(adts: Iterable[Adt], sink: ProverLike): Unit = {
+    val decls = adts.map(adt => {
+      val typeVars = adt.typVars.map(_.name)
+      val constructors = adt.constructors.map(con =>
+        terms.AdtConstructorDecl(Identifier(con.adtName + "$" + con.name), mutable.SortedMap(
+          con.formalArgs.map(v => con.adtName + "$" + con.name + "$" + v.name -> symbolConverter.toSort(v.typ)): _*)
+        )
+      )
+
+      AdtDecl(Identifier(adt.name), typeVars, constructors)
+    }).toSeq
+    sink.declare(AdtDecls(decls))
+  }
+
   private def emitSortWrappers(ss: Iterable[Sort], sink: ProverLike): Unit = {
     sink.comment("Declaring sort wrappers")
-
-    // TODO jga: move this to a proper ADT declaration once its ready
-    var str = "(declare-datatypes () (($Snap $Snap.unit"
-    ss.foreach(sort => {
+    val unitConstructor = terms.AdtConstructorDecl(Identifier("$Snap.unit"), mutable.SortedMap())
+    val combineConstructor = terms.AdtConstructorDecl(Identifier("$Snap.combine"), mutable.SortedMap("$Snap.first" -> Snap, "$Snap.second" -> Snap))
+    val constructors =
+      unitConstructor +:
+      ss.map(sort => {
       val sanitizedSortString = termConverter.convertSanitized(sort)
-      val sortString = termConverter.convert(sort)
+      terms.AdtConstructorDecl(Identifier("$SortWrappers." + sanitizedSortString + "To$Snap"), mutable.SortedMap("$SortWrappers.$SnapTo" + sanitizedSortString -> sort))
+    }).toSeq :+ combineConstructor
 
-      str += (" ($SortWrappers." + sanitizedSortString + "To$Snap ($SortWrappers.$SnapTo" + sanitizedSortString + " "+ sortString + "))")
-    })
-    str += " ($Snap.combine ($Snap.first $Snap) ($Snap.second $Snap)))))"
-
-    sink.emit(str)
+    val decl = AdtDecl(Identifier("$Snap"), Seq(), constructors)
+    sink.declare(AdtDecls(Seq(decl)))
   }
 
   private def setErrorScope(results: Seq[VerificationResult], scope: Member): Seq[VerificationResult] = {

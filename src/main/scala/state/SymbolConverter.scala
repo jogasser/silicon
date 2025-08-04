@@ -8,6 +8,7 @@ package viper.silicon.state
 
 import viper.silver.ast
 import viper.silicon.state.terms.{Sort, sorts}
+import viper.silver.plugin.standard.adt.AdtType
 
 trait SymbolConverter {
   def toSort(typ: ast.Type): Sort
@@ -26,7 +27,10 @@ class DefaultSymbolConverter extends SymbolConverter {
     case ast.Int => sorts.Int
     case ast.Perm => sorts.Perm
     case ast.Ref => sorts.Ref
-
+    case v: ast.TypeVar => sorts.UserSort(Identifier(v.name))
+    case adt: AdtType =>
+      val instantiations = adt.typeParameters.map(t => toSort(adt.typVarsMap(t)))
+      sorts.AdtType(adt.adtName, instantiations)
     case ast.SeqType(elementType) => sorts.Seq(toSort(elementType))
     case ast.SetType(elementType) => sorts.Set(toSort(elementType))
     case ast.MultisetType(elementType) => sorts.Multiset(toSort(elementType))

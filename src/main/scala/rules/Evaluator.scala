@@ -26,6 +26,7 @@ import viper.silicon.utils.{freshSnap, toSf}
 import viper.silicon.verifier.Verifier
 import viper.silicon.{Map, TriggerSets}
 import viper.silver.ast.{AnnotationInfo, LocalVarWithVersion, TrueLit, WeightedQuantifier}
+import viper.silver.plugin.standard.adt.{AdtConstructorApp, AdtDestructorApp, AdtDiscriminatorApp}
 import viper.silver.reporter.{AnnotationWarning, WarningsDuringVerification}
 import viper.silver.utility.Common.Rational
 
@@ -1324,11 +1325,25 @@ object evaluator extends EvaluationRules {
           case (s1, Seq(keyT, baseT), esNew, v1) => Q(s1, SetIn(keyT, MapDomain(baseT)), esNew.map(es => ast.MapContains(es(0), es(1))(e.pos, e.info, e.errT)), v1)
         })
 
+      /* TODO Adts */
+      // Constructors
+      case con: AdtConstructorApp =>
+        evals(s, con.args, _ => pve, v)((s1, tArgs, eArgsNew, v1) => {
+          val app = App(AdtConstructor(Identifier(con.adtName + "$" + con.name), tArgs, v.symbolConverter.toSort(con.typ)), tArgs)
+          val appNew = eArgsNew.map(a => AdtConstructorApp(con.name, a, con.typVarMap)(con.pos, con.info, con.typ, con.adtName, con.errT))
+          Q(s1, app, appNew, v1)
+        })
+
+      // Destructor
+      case des: AdtDestructorApp =>
+        des.
+      // Discriminators
+      case _: AdtDiscriminatorApp =>
+
       /* Unexpected nodes */
 
       case _: ast.InhaleExhaleExp =>
         createFailure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(e), v, s, "valid AST")
-
       case _: ast.EpsilonPerm
          | _: ast.Maplet
          | _: ast.FieldAccessPredicate

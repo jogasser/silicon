@@ -49,7 +49,8 @@ class TermToSMTLib2Converter
     case sorts.Multiset(elementSort) => text("Multiset<") <> doRender(elementSort, true) <> ">"
     case sorts.UserSort(id) => render(id)
     case sorts.SMTSort(id) => if (alwaysSanitize) render(id) else id.name
-
+    // TODO generate unique, sanitized string with type arguments
+    case sorts.AdtType(name, types) => if (alwaysSanitize) text(name) else parens(text(name) <+> ssep(types.map(t => doRender(t)).toSeq, space))
     case sorts.Unit =>
       /* Sort Unit corresponds to Scala's Unit type and is used, e.g., as the
        * domain sort of nullary functions.
@@ -110,6 +111,21 @@ class TermToSMTLib2Converter
       });
       val bodies = funcs map (f => render(f.body))
       parens(text("define-funs-rec") <+> parens(ssep(funDefs, line)) <+> parens(ssep(bodies, line)))
+    case AdtDecls(adtDecls) =>
+      val typeArgDef = adtDecls.map(d => parens(text(render(d.id)) <+> text(d.typeVars.length.toString)))
+
+      val bodies = adtDecls.map(d => {
+        val b = d.constructors.map(c => {
+          val argDefs = c.args.map(a => parens(text(a._1) <+> render(a._2))).toSeq
+          parens(text(c.name) <+> ssep(argDefs, space))
+        })
+        if(d.typeVars.nonEmpty)
+          parens(text("par") <+> parens(ssep(d.typeVars.map(text), space)) <+> parens(ssep(b, line)))
+        else
+          parens(ssep(b, line))
+      })
+
+      parens(text("declare-datatypes") <+> parens(ssep(typeArgDef, space)) <> parens(ssep(bodies, line)))
   }
 
   def convert(t: Term): String = {

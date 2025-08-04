@@ -251,6 +251,8 @@ trait ExpressionTranslator {
 
       /* Unsupported (because unexpected) expressions */
 
+      /* TODO Adts */
+
       case     _: ast.LocationAccess
              | _: ast.AccessPredicate
              | _: ast.Old

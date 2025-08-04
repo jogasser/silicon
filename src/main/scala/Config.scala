@@ -16,7 +16,7 @@ import viper.silicon.Config.StateConsolidationMode.StateConsolidationMode
 import viper.silicon.decider.{Cvc5ProverStdIO, Z3ProverAPI, Z3ProverStdIO}
 import viper.silver.frontend.SilFrontendConfig
 
-class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
+class Config(args: Seq[String]) extends SilFrontendConfig(args :+ "--disableAdtDomainTransformation", "Silicon") {
   import Config._
 
   /** Attention: Don't use options to compute default values! This will cause
