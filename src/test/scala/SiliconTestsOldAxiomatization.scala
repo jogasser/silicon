@@ -10,6 +10,6 @@ class SiliconTestsOldAxiomatization extends SiliconTests {
   override val testDirectories: Seq[String] = Seq("oldaxiomatization")
 
  override val commandLineArguments: Seq[String] = Seq(
-    "--timeout", "300" /* seconds */,
+    "--timeout", "15" /* seconds */,
     "--useOldAxiomatization")
 }

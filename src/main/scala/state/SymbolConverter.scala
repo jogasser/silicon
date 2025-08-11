@@ -30,7 +30,7 @@ class DefaultSymbolConverter extends SymbolConverter {
     case v: ast.TypeVar => sorts.UserSort(Identifier(v.name))
     case adt: AdtType =>
       val instantiations = adt.typeParameters.map(t => toSort(adt.typVarsMap(t)))
-      sorts.AdtType(adt.adtName, instantiations)
+      sorts.AdtType(Identifier(adt.adtName), instantiations)
     case ast.SeqType(elementType) => sorts.Seq(toSort(elementType))
     case ast.SetType(elementType) => sorts.Set(toSort(elementType))
     case ast.MultisetType(elementType) => sorts.Multiset(toSort(elementType))

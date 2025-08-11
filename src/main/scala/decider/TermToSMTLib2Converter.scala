@@ -50,7 +50,8 @@ class TermToSMTLib2Converter
     case sorts.UserSort(id) => render(id)
     case sorts.SMTSort(id) => if (alwaysSanitize) render(id) else id.name
     // TODO generate unique, sanitized string with type arguments
-    case sorts.AdtType(name, types) => if (alwaysSanitize) text(name) else parens(text(name) <+> ssep(types.map(t => doRender(t)).toSeq, space))
+    case sorts.AdtType(id, types) => if (alwaysSanitize) render(id) else
+      if (types.nonEmpty) parens(text(render(id)) <+> ssep(types.map(t => doRender(t)).toSeq, space)) else render(id)
     case sorts.Unit =>
       /* Sort Unit corresponds to Scala's Unit type and is used, e.g., as the
        * domain sort of nullary functions.
@@ -117,7 +118,7 @@ class TermToSMTLib2Converter
       val bodies = adtDecls.map(d => {
         val b = d.constructors.map(c => {
           val argDefs = c.args.map(a => parens(text(a._1) <+> render(a._2))).toSeq
-          parens(text(c.name) <+> ssep(argDefs, space))
+          parens(text(render(c.id)) <+> ssep(argDefs, space))
         })
         if(d.typeVars.nonEmpty)
           parens(text("par") <+> parens(ssep(d.typeVars.map(text), space)) <+> parens(ssep(b, line)))
@@ -351,6 +352,8 @@ class TermToSMTLib2Converter
 
     case MagicWandSnapshot(mwsf) => render(mwsf)
     case MWSFLookup(mwsf, snap) => renderApp("MWSF_apply", Seq(mwsf, snap), sorts.Snap)
+
+    case AdtDiscriminator(id, rcv) => parens(parens(text("_") <+> text("is") <+> render(id)) <+> render(rcv))
 
     case _: MagicWandChunkTerm
        | _: Quantification =>

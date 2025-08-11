@@ -559,9 +559,8 @@ class DefaultMainVerifier(config: Config,
 
     emitSortWrappers(collectedSorts, sink)
 
-    // TODO: Top level declarations?
-    val adts = program.extensions.collect { case t: Adt => t }
     sink.comment("/" * 10 + " User defined Adts")
+    val adts = program.extensions.collect { case t: Adt => t }
     emitDataTypes(adts, sink)
 
     sink.comment("/" * 10 + " Symbols")
@@ -587,8 +586,8 @@ class DefaultMainVerifier(config: Config,
     val decls = adts.map(adt => {
       val typeVars = adt.typVars.map(_.name)
       val constructors = adt.constructors.map(con =>
-        terms.AdtConstructorDecl(Identifier(con.adtName + "$" + con.name), mutable.SortedMap(
-          con.formalArgs.map(v => con.adtName + "$" + con.name + "$" + v.name -> symbolConverter.toSort(v.typ)): _*)
+        terms.AdtConstructorDecl(Identifier(con.adtName + "$" + con.name),
+          con.formalArgs.map(v => con.adtName + "$" + v.name -> symbolConverter.toSort(v.typ))
         )
       )
 
@@ -599,13 +598,13 @@ class DefaultMainVerifier(config: Config,
 
   private def emitSortWrappers(ss: Iterable[Sort], sink: ProverLike): Unit = {
     sink.comment("Declaring sort wrappers")
-    val unitConstructor = terms.AdtConstructorDecl(Identifier("$Snap.unit"), mutable.SortedMap())
-    val combineConstructor = terms.AdtConstructorDecl(Identifier("$Snap.combine"), mutable.SortedMap("$Snap.first" -> Snap, "$Snap.second" -> Snap))
+    val unitConstructor = terms.AdtConstructorDecl(Identifier("$Snap.unit"), Seq())
+    val combineConstructor = terms.AdtConstructorDecl(Identifier("$Snap.combine"), Seq("$Snap.first" -> Snap, "$Snap.second" -> Snap))
     val constructors =
       unitConstructor +:
       ss.map(sort => {
       val sanitizedSortString = termConverter.convertSanitized(sort)
-      terms.AdtConstructorDecl(Identifier("$SortWrappers." + sanitizedSortString + "To$Snap"), mutable.SortedMap("$SortWrappers.$SnapTo" + sanitizedSortString -> sort))
+      terms.AdtConstructorDecl(Identifier("$SortWrappers." + sanitizedSortString + "To$Snap"), Seq("$SortWrappers.$SnapTo" + sanitizedSortString -> sort))
     }).toSeq :+ combineConstructor
 
     val decl = AdtDecl(Identifier("$Snap"), Seq(), constructors)

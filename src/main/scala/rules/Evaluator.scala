@@ -1329,17 +1329,25 @@ object evaluator extends EvaluationRules {
       // Constructors
       case con: AdtConstructorApp =>
         evals(s, con.args, _ => pve, v)((s1, tArgs, eArgsNew, v1) => {
-          val app = App(AdtConstructor(Identifier(con.adtName + "$" + con.name), tArgs, v.symbolConverter.toSort(con.typ)), tArgs)
+          val app = App(AdtConstructor(Identifier(con.adtName + "$" + con.name), tArgs.map(_.sort), v.symbolConverter.toSort(con.typ)), tArgs)
           val appNew = eArgsNew.map(a => AdtConstructorApp(con.name, a, con.typVarMap)(con.pos, con.info, con.typ, con.adtName, con.errT))
           Q(s1, app, appNew, v1)
         })
 
       // Destructor
       case des: AdtDestructorApp =>
-        des.
+        eval(s, des.rcv, pve, v)((s1, tRcv, eRcvNew, v1) => {
+          val app = App(AdtDestructor(Identifier(des.adtName + "$" + des.name), tRcv.sort, v.symbolConverter.toSort(des.typ)), tRcv)
+          val appNew = eRcvNew.map(a => AdtDestructorApp(des.name, a, des.typVarMap)(des.pos, des.info, des.typ, des.adtName, des.errT))
+          Q(s1, app, appNew, v1)
+        })
       // Discriminators
-      case _: AdtDiscriminatorApp =>
-
+      case dis: AdtDiscriminatorApp =>
+        eval(s, dis.rcv, pve, v)((s1, tRcv, eRcvNew, v1) => {
+          val tDis = AdtDiscriminator(Identifier(dis.adtName + "$" + dis.name), tRcv)
+          val appNew = eRcvNew.map(a => AdtDiscriminatorApp(dis.name, a, dis.typVarMap)(dis.pos, dis.info, dis.adtName, dis.errT))
+          Q(s1, tDis, appNew, v1)
+        })
       /* Unexpected nodes */
 
       case _: ast.InhaleExhaleExp =>

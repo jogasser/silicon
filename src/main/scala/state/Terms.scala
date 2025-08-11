@@ -11,12 +11,12 @@ import scala.annotation.tailrec
 import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
+import viper.silicon.state.terms.sorts.Bool
 import viper.silicon.{Map, Stack, state, toMap}
 import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SimpleIdentifier, SortBasedIdentifier}
 import viper.silicon.verifier.Verifier
 import viper.silver.utility.Common.Rational
 
-import scala.collection.SortedMap
 import scala.collection.concurrent.TrieMap
 
 sealed trait Node {
@@ -41,8 +41,7 @@ object sorts {
   object Perm extends Sort { val id = Identifier("Perm"); override lazy val toString = id.toString }
   object Unit extends Sort { val id = Identifier("()");   override lazy val toString = id.toString }
 
-  case class AdtType(name: String, typeInstantiations: collection.Seq[Sort]) extends Sort {
-    val id = Identifier(s"($name ${typeInstantiations.map(_.id.name).mkString(" ")}")
+  case class AdtType(id: Identifier, typeInstantiations: collection.Seq[Sort]) extends Sort {
     override lazy val toString = id.toString
   }
 
@@ -161,21 +160,38 @@ object AdtDecls extends CondFlyweightFactory[Seq[AdtDecl], AdtDecls, AdtDecls] {
   override def actualCreate(args: Seq[AdtDecl]): AdtDecls = new AdtDecls(args)
 }
 
-class AdtConstructorDecl(val id: Identifier, val args: SortedMap[String, Sort]) extends ConditionalFlyweight[(Identifier, SortedMap[String, Sort]), AdtConstructorDecl]{
-  override val equalityDefiningMembers: (Identifier, SortedMap[String, Sort]) = (id, args);
+class AdtConstructorDecl(val id: Identifier, val args: Seq[(String, Sort)]) extends ConditionalFlyweight[(Identifier, Seq[(String, Sort)]), AdtConstructorDecl]{
+  override val equalityDefiningMembers: (Identifier, Seq[(String, Sort)]) = (id, args);
 }
 
-object AdtConstructorDecl extends CondFlyweightFactory[(Identifier, SortedMap[String, Sort]), AdtConstructorDecl, AdtConstructorDecl] {
-  override def actualCreate(args: (Identifier, SortedMap[String, Sort])): AdtConstructorDecl = new AdtConstructorDecl(args._1, args._2)
+object AdtConstructorDecl extends CondFlyweightFactory[(Identifier, Seq[(String, Sort)]), AdtConstructorDecl, AdtConstructorDecl] {
+  override def actualCreate(args: (Identifier, Seq[(String, Sort)])): AdtConstructorDecl = new AdtConstructorDecl(args._1, args._2)
 }
 
-class AdtConstructor(val id: Identifier, val args: Seq[Term], val resultSort: Sort) extends Applicable with ConditionalFlyweight[(Identifier, Seq[Term], Sort), AdtConstructor] {
-  override val equalityDefiningMembers: (Identifier, Seq[Term], Sort) = (id, args, resultSort);
-  override def argSorts: Stack[Sort] = args.map(_.sort)
+class AdtConstructor(val id: Identifier, val argSorts: Seq[Sort], val resultSort: Sort) extends Applicable with ConditionalFlyweight[(Identifier, Seq[Sort], Sort), AdtConstructor] {
+  override val equalityDefiningMembers: (Identifier, Seq[Sort], Sort) = (id, argSorts, resultSort);
 }
 
-object AdtConstructor extends CondFlyweightFactory[(Identifier, Seq[Term], Sort), AdtConstructor, AdtConstructor] {
-  override def actualCreate(args: (Identifier, Seq[Term], Sort)): AdtConstructor = new AdtConstructor(args._1, args._2, args._3)
+object AdtConstructor extends CondFlyweightFactory[(Identifier, Seq[Sort], Sort), AdtConstructor, AdtConstructor] {
+  override def actualCreate(args: (Identifier, Seq[Sort], Sort)): AdtConstructor = new AdtConstructor(args._1, args._2, args._3)
+}
+
+class AdtDestructor(val id: Identifier, val rcvSort: Sort, val resultSort: Sort) extends Applicable with ConditionalFlyweight[(Identifier, Sort, Sort), AdtDestructor] {
+  override val equalityDefiningMembers: (Identifier, Sort, Sort) = (id, rcvSort, resultSort);
+  override def argSorts: Stack[Sort] = Seq(rcvSort)
+}
+
+object AdtDestructor extends CondFlyweightFactory[(Identifier, Sort, Sort), AdtDestructor, AdtDestructor] {
+  override def actualCreate(args: (Identifier, Sort, Sort)): AdtDestructor = new AdtDestructor(args._1, args._2, args._3)
+}
+
+class AdtDiscriminator(val id: Identifier, val rcv: Term) extends Term with ConditionalFlyweight[(Identifier, Term), AdtDiscriminator] {
+  override val equalityDefiningMembers: (Identifier, Term) = (id, rcv)
+  override def sort: Sort = Bool
+}
+
+object AdtDiscriminator extends CondFlyweightFactory[(Identifier, Term), AdtDiscriminator, AdtDiscriminator] {
+  override def actualCreate(args: (Identifier, Term)): AdtDiscriminator = new AdtDiscriminator(args._1, args._2)
 }
 
 class SortWrapperDecl private[terms] (val from: Sort, val to: Sort) extends Decl with ConditionalFlyweight[(Sort, Sort), SortWrapperDecl] {

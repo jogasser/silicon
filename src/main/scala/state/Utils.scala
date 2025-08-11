@@ -134,6 +134,7 @@ package object utils {
     case FieldTrigger(_, fvf, at) => fvf :: at :: Nil
     case PredicateTrigger(_, psf, args) => psf +: args
     case IsSortWrapper(s) => Seq(s)
+    case AdtDiscriminator(_, t) => Seq(t)
   }
 
   /** @see [[viper.silver.ast.utility.Simplifier.simplify]] */
@@ -257,7 +258,7 @@ package object utils {
       case PredicateLookup(p, psf, args) => PredicateLookup(p, go(psf), args map go)
       case PredicatePermLookup(predname, pm, args) => PredicatePermLookup(predname, go(pm), args map go)
       case PredicateTrigger(p, psf, args) => PredicateTrigger(p, go(psf), args map go)
-
+      case AdtDiscriminator(id, t) => AdtDiscriminator(id, go(t));
     }
 
     val beforeRecursion = pre.applyOrElse(term, identity[Term])

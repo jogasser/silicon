@@ -11,6 +11,7 @@ import viper.silicon.rules.functionSupporter
 import viper.silicon.state.Identifier
 import viper.silicon.state.terms._
 import viper.silver.ast.{AnnotationInfo, WeightedQuantifier}
+import viper.silver.plugin.standard.adt.{AdtConstructorApp, AdtDestructorApp, AdtDiscriminatorApp}
 
 trait ExpressionTranslator {
   /* TODO: Shares a lot of code with DefaultEvaluator. Unfortunately, it doesn't seem to be easy to
@@ -249,9 +250,11 @@ trait ExpressionTranslator {
 
       case ast.Let(lvd, e, body) => Let(f(lvd.localVar).asInstanceOf[Var], f(e), f(body))
 
-      /* Unsupported (because unexpected) expressions */
+      case con: AdtConstructorApp => App(AdtConstructor(Identifier(con.adtName + "$" + con.name), con.args.map(_.typ).map(toSort), toSort(con.typ)), con.args.map(f))
+      case des: AdtDestructorApp => App(AdtDestructor(Identifier(des.adtName + "$" + des.name), toSort(des.rcv.typ), toSort(des.typ)), f(des.rcv))
+      case dis: AdtDiscriminatorApp => AdtDiscriminator(Identifier(dis.adtName + "$" + dis.name), f(dis.rcv))
 
-      /* TODO Adts */
+      /* Unsupported (because unexpected) expressions */
 
       case     _: ast.LocationAccess
              | _: ast.AccessPredicate
