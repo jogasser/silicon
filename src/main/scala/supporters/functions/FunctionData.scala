@@ -210,9 +210,9 @@ class FunctionData(val programFunction: ast.Function,
     }
 
     var replacedTerms = translateToLimitedVersion(term)
-    val stuff = replacedTerms.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app}).toSet
+    val limitedApps = replacedTerms.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app}).toSet
 
-    stuff.foreach(v => {
+    limitedApps.foreach(v => {
       val origFun = v.applicable.asInstanceOf[HeapDepFun]
       val app = App(transformer(origFun), v.args)
       replacedTerms = And(replacedTerms, app)
