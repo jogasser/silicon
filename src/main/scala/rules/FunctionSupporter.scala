@@ -17,11 +17,11 @@ object functionSupporter {
 
   def postconditionVersion(function: HeapDepFun): HeapDepFun = {
     val id = function.id.withSuffix("%", "posts")
-    HeapDepFun(id, function.argSorts ++ Seq(function.resultSort), terms.sorts.Bool)
+    HeapDepFun(id, function.argSorts, terms.sorts.Bool)
   }
 
   def definitionalVersion(function: HeapDepFun): HeapDepFun = {
     val id = function.id.withSuffix("%", "def")
-    HeapDepFun(id, function.argSorts ++ Seq(function.resultSort), terms.sorts.Bool)
+    HeapDepFun(id, function.argSorts, terms.sorts.Bool)
   }
 }

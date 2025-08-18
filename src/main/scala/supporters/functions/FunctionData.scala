@@ -184,14 +184,7 @@ class FunctionData(val programFunction: ast.Function,
     if(translatedPres.nonEmpty)
       combinedTerm = Implies(And(translatedPres), combinedTerm)
 
-    // add nested definitional axioms & ensure result is an actual function result
-    combinedTerm = And(
-        generateNestedDefinitionalAxioms ++ List(
-          Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)),
-          combinedTerm
-        )
-    )
-
+    combinedTerm = And(generateNestedDefinitionalAxioms ++ List(combinedTerm))
     transformAllFunctionCalls(combinedTerm, functionSupporter.definitionalVersion)
   }
 
@@ -201,40 +194,37 @@ class FunctionData(val programFunction: ast.Function,
 
     if(translatedPres.nonEmpty)
       combinedTerm = Implies(And(translatedPres), combinedTerm)
-
-    combinedTerm = And(Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)), combinedTerm)
     transformAllFunctionCalls(combinedTerm, functionSupporter.postconditionVersion)
   }
 
   def transformAllFunctionCalls(term: Term, transformer: HeapDepFun => HeapDepFun): Term = {
-    val apps = term.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] &&  app.applicable.asInstanceOf[HeapDepFun] != functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]) => app})
-    var i = 0
-    val resFunMap = apps.map(f => {
-      i += 1
-      f -> Var(SimpleIdentifier("res@" + f.applicable.id.name + "@" + i), f.sort, false)
+    def translateToLimitedVersion(term: Term): Term = {
+      var replacedTerms = term
+      val apps = term.shallowCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app})
+      apps.foreach(app => {
+        val translatedArgs = app.args.map(translateToLimitedVersion)
+        replacedTerms = replacedTerms.replace(app, App(functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]), translatedArgs))
+      })
+
+      replacedTerms;
+    }
+
+    var replacedTerms = translateToLimitedVersion(term)
+    val stuff = replacedTerms.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app}).toSet
+
+    stuff.foreach(v => {
+      val origFun = v.applicable.asInstanceOf[HeapDepFun]
+      val app = App(transformer(origFun), v.args)
+      replacedTerms = And(replacedTerms, app)
     })
-
-    var replacedTerms = term.replace(resFunMap.map(_._1), resFunMap.map(_._2))
-
-    resFunMap.foreach(v => {
-      val res = v._2
-      val args = v._1.args.map(_.replace(resFunMap.map(_._1), resFunMap.map(_._2)))
-      val origFun = v._1.applicable.asInstanceOf[HeapDepFun]
-      val limitedApp = App(functionSupporter.limitedVersion(origFun), args)
-
-      val funToCall = transformer(origFun)
-      val app = App(funToCall, args.appended(res))
-      replacedTerms = Let(res, limitedApp, And(replacedTerms, app))
-    })
-
-    replacedTerms
+    replacedTerms.replace(formalResult, App(limitedFunction, arguments))
   }
 
   def postsVersionDef(): FunctionDef = {
-    FunctionDef(functionSupporter.postconditionVersion(function), arguments ++ Seq(formalResult), postsBody)
+    FunctionDef(functionSupporter.postconditionVersion(function), arguments, postsBody)
   }
 
   def defVersionDef(): FunctionDef = {
-    FunctionDef(functionSupporter.definitionalVersion(function), arguments ++ Seq(formalResult), definitionalBody)
+    FunctionDef(functionSupporter.definitionalVersion(function), arguments, definitionalBody)
   }
 }
