@@ -242,6 +242,7 @@ class DefaultMainVerifier(config: Config,
       }).toList
       functionsSupporter.defineFunctionsOfHeight(height)
     })
+    functionsSupporter.defineFunctionsAfterVerification()
 
     val predicateVerificationResults = predicateSupporter.units.toList flatMap (predicate => {
       val startTime = System.currentTimeMillis()

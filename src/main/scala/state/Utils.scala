@@ -134,6 +134,7 @@ package object utils {
     case FieldTrigger(_, fvf, at) => fvf :: at :: Nil
     case PredicateTrigger(_, psf, args) => psf +: args
     case IsSortWrapper(s) => Seq(s)
+    case SortWrapper(s, _) => Seq(s)
   }
 
   /** @see [[viper.silver.ast.utility.Simplifier.simplify]] */

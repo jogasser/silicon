@@ -299,26 +299,35 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       freshVars foreach (x => sink.declare(ConstDecl(x)))
     }
 
+    var phaseInfo: Map[Function, Int] = Map()
+
     def defineFunctionsOfHeight(height: Int): Unit = {
-      functionData.filter(d => d._2.height == height).foreach(_._2.phase = 2)
+      functionData.filter(d => d._2.height == height).foreach(data => {
+        data._2.phase = 2
+        phaseInfo += (data._2.function -> 2)
+      })
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.defVersionDef()
+        data.defVersionDef(phaseInfo)
       })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
     def definePostFunctionsOfHeight(height: Int): Unit = {
-      functionData.filter(d => d._2.height == height).foreach(_._2.phase = 1)
+      functionData.filter(d => d._2.height == height).foreach(data => {
+        data._2.phase = 1
+        phaseInfo += (data._2.function -> 1)
+      })
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.postsVersionDef()
+        data.postsVersionDef(phaseInfo)
       })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
-    def defineFunctionsAfterVerification(sink: ProverLike): Unit = {
-      val decls = functionData.values.filter(_.phase == 2).map(data => data.defVersionDef())
+    def defineFunctionsAfterVerification(sink: ProverLike = decider.prover): Unit = {
+      functionData.foreach(data => { data._2.phase = 3 } )
+      val decls = functionData.values.map(data => data.finalVersionDef())
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => sink.declare(decl))
       sink.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }

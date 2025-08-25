@@ -978,6 +978,7 @@ object evaluator extends EvaluationRules {
                 val funToCall = s3.functionData(func).phase match {
                   case 1 => functionSupporter.postconditionVersion(fun)
                   case 2 => functionSupporter.definitionalVersion(fun)
+                  case 3 => functionSupporter.finalVersion(fun)
                 }
                 val finalArgs = snap1 :: tArgs
                 v3.decider.assume(getFApp(funToCall, finalArgs), None)
