@@ -309,7 +309,6 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
         data.defVersionDef(phaseInfo)
       })
-      decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
@@ -321,14 +320,12 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
         data.postsVersionDef(phaseInfo)
       })
-      decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
     def defineFunctionsAfterVerification(sink: ProverLike = decider.prover): Unit = {
       functionData.foreach(data => { data._2.phase = 3 } )
       val decls = functionData.values.map(data => data.finalVersionDef())
-      decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => sink.declare(decl))
       sink.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 

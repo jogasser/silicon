@@ -359,7 +359,6 @@ object producer extends ProductionRules {
               if (s2.qpPredicates.contains(predicate)) {
                 val formalArgs = s2.predicateFormalVarMap(predicate)
                 val trigger = (sm: Term) => PredicateTrigger(predicate.name, sm, tArgs)
-                v2.decider.assumeSortWrapper(toSnapTree(tArgs))
                 quantifiedChunkSupporter.produceSingleLocation(
                   s2, predicate, formalArgs, Option.when(withExp)(predicate.formalArgs), tArgs, eArgsNew, snap, gain, gainExp, trigger, v2)(Q)
               } else {
@@ -401,7 +400,6 @@ object producer extends ProductionRules {
                 s1, wand, formalVars, relevantChunks, v1)
             val argsStr = bodyVarsNew.mkString(", ")
             val debugExp = Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${ch.id.toString}($argsStr))", isInternal_ = true))
-            v1.decider.assumeSortWrapper(toSnapTree(args))
             v1.decider.assume(PredicateTrigger(ch.id.toString, smDef1.sm, args), debugExp)
             smCache1
           } else {

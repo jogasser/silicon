@@ -270,7 +270,6 @@ object havocSupporter extends SymbolicExecutionRules {
 
       // axiomatize the snapshot map:
       //  forall s: Snap :: !cond(s) ==> sm(s) == sm'(s)
-      v.decider.assumeSortWrapper(toSnapTree(Seq(aggregateQvar)))
       val lookupNew = ResourceLookup(resource, newSm, Seq(aggregateQvar), s.program)
       val lookupOld = ResourceLookup(resource, ch.snapshotMap, Seq(aggregateQvar), s.program)
       val newAxiom = Forall(
