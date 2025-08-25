@@ -548,10 +548,11 @@ class DefaultMainVerifier(config: Config,
 
     emitSortWrappers(collectedSorts, sink)
 
-    sink.comment("/" * 10 + " User defined Adts")
     val adts = program.extensions.collect { case t: Adt => t }
-    emitDataTypes(adts, sink)
-
+    if(adts.length > 0) {
+      sink.comment("/" * 10 + " User defined Adts")
+      emitDataTypes(adts, sink)
+    }
     sink.comment("/" * 10 + " Symbols")
     symbolDeclarationOrder foreach (component =>
       component.declareSymbolsAfterAnalysis(sink))
