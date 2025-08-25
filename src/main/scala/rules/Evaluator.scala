@@ -572,7 +572,6 @@ object evaluator extends EvaluationRules {
                     val (s2, smDef, pmDef) = quantifiedChunkSupporter.heapSummarisingMaps(s1, wand, formalVars, relevantChunks, v1)
                     val debugExp = Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${identifier.toString}($eArgsString))", isInternal_ = true))
 
-                    v1.decider.assumeSortWrapper(toSnapTree(args))
                     v1.decider.assume(PredicateTrigger(identifier.toString, smDef.sm, args), debugExp)
                     (s2, pmDef)
                   } else {
@@ -582,7 +581,6 @@ object evaluator extends EvaluationRules {
 
                     (s1.copy(pmCache = pmCache), pmDef)
                   }
-                  v1.decider.assumeSortWrapper(toSnapTree(args))
                   (s2, PredicatePermLookup(identifier.toString, pmDef.pm, args))
 
                 case field: ast.Field =>
@@ -618,10 +616,8 @@ object evaluator extends EvaluationRules {
                     val trigger = PredicateTrigger(predicate.name, smDef.sm, args)
                     val argsString = eArgsNew.mkString(", ")
 
-                    v1.decider.assumeSortWrapper(toSnapTree(args))
                     v1.decider.assume(trigger, Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($argsString))", isInternal_ = true)))
                   }
-                  v1.decider.assumeSortWrapper(toSnapTree(args))
                   (s2, PredicatePermLookup(identifier.toString, pmDef.pm, args))
               }
             } else {
@@ -740,16 +736,13 @@ object evaluator extends EvaluationRules {
               val bcExp: ast.Exp = ast.LocalVar("chunk has non-zero permission", ast.Bool)() // TODO
               val bcExpNew = Option.when(withExp)(ast.GeCmp(replaceVarsInExp(ch.permExp.get, ch.quantifiedVarExps.get.map(_.name), es1.get), ast.NoPerm()())(ch.permExp.get.pos, ch.permExp.get.info, ch.permExp.get.errT))
 
-              v.decider.assumeSortWrapper(toSnapTree(ts1))
               val tTriggers = Seq(Trigger(ch.valueAt(ts1)))
 
               val trig = ch match {
                 case fc: QuantifiedFieldChunk => FieldTrigger(fc.id.name, fc.fvf, ts1.head)
                 case pc: QuantifiedPredicateChunk =>
-                  v1.decider.assumeSortWrapper(toSnapTree(ts1))
                   PredicateTrigger(pc.id.name, pc.psf, ts1)
                 case wc: QuantifiedMagicWandChunk =>
-                  v1.decider.assumeSortWrapper(toSnapTree(ts1))
                   PredicateTrigger(wc.id.toString, wc.wsf, ts1)
               }
 
@@ -1871,7 +1864,6 @@ object evaluator extends EvaluationRules {
 
     evals(s1, pa.args, _ => pve, v)((_, tArgs, _, _) => {
       axioms = axioms ++ smDef1.valueDefinitions
-      v.decider.assumeSortWrapper(toSnapTree(tArgs))
       mostRecentTrig = PredicateTrigger(pa.predicateName, smDef1.sm, tArgs)
       triggers = triggers :+ mostRecentTrig
       Success()
@@ -1904,7 +1896,6 @@ object evaluator extends EvaluationRules {
 
     evals(s1, wand.subexpressionsToEvaluate(s.program), _ => pve, v)((_, tArgs, _, _) => {
       axioms = axioms ++ smDef1.valueDefinitions
-      v.decider.assumeSortWrapper(toSnapTree(tArgs))
       mostRecentTrig = PredicateTrigger(MagicWandIdentifier(wand, s.program).toString, smDef1.sm, tArgs)
       triggers = triggers :+ mostRecentTrig
       Success()
