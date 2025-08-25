@@ -8,7 +8,7 @@ package viper.silicon.supporters.functions
 
 import scala.annotation.unused
 import com.typesafe.scalalogging.LazyLogging
-import viper.silicon.state.{Identifier, IdentifierFactory, SimpleIdentifier, SymbolConverter}
+import viper.silicon.state.{Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.FatalResult
@@ -176,65 +176,80 @@ class FunctionData(val programFunction: ast.Function,
     expressionTranslator.translatePrecondition(program, programFunction.pres, this)
   }
 
-  private lazy val definitionalBody: Term = {
-    assert(phase == 2, s"Definitional function must be generated in phase 2, current phase is $phase")
+  lazy val finalFunctionBody: Term = {
+    assert(phase == 3, s"Final function must be generated in phase 2, current phase is $phase")
     val body = expressionTranslator.translate(program, programFunction, this).map(b => Equals(formalResult, b))
     var combinedTerm = And(body.map(_ +: translatedPosts).getOrElse(translatedPosts))
 
     if(translatedPres.nonEmpty)
       combinedTerm = Implies(And(translatedPres), combinedTerm)
 
-    // add nested definitional axioms & ensure result is an actual function result
-    combinedTerm = And(
-        generateNestedDefinitionalAxioms ++ List(
-          Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)),
-          combinedTerm
-        )
-    )
-
-    transformAllFunctionCalls(combinedTerm, functionSupporter.definitionalVersion)
+    combinedTerm = And(generateNestedDefinitionalAxioms ++ List(combinedTerm))
+    transformAllFunctionCalls(combinedTerm, fun => functionSupporter.finalVersion(fun))
   }
 
-  private lazy val postsBody: Term = {
-    assert(phase == 1, s"Postcondition function must be generated in phase 1, current phase is $phase")
-    var combinedTerm = And(translatedPosts);
+  private def definitionalBody(phaseInfo: Map[Function, Int]): Term = {
+    assert(phase == 2, s"Definitional function must be generated in phase 2, current phase is $phase")
+
+    def transformFunction(fun: HeapDepFun) = {
+      phaseInfo(fun) match {
+        case 1 => functionSupporter.postconditionVersion(fun);
+        case 2 => functionSupporter.definitionalVersion(fun);
+      }
+    }
+
+    val body = expressionTranslator.translate(program, programFunction, this).map(b => Equals(formalResult, b))
+    var combinedTerm = And(body.map(_ +: translatedPosts).getOrElse(translatedPosts))
 
     if(translatedPres.nonEmpty)
       combinedTerm = Implies(And(translatedPres), combinedTerm)
 
-    combinedTerm = And(Equals(formalResult, App(functionSupporter.limitedVersion(function), arguments)), combinedTerm)
-    transformAllFunctionCalls(combinedTerm, functionSupporter.postconditionVersion)
+    combinedTerm = And(generateNestedDefinitionalAxioms ++ List(combinedTerm))
+    transformAllFunctionCalls(combinedTerm, transformFunction)
   }
 
-  def transformAllFunctionCalls(term: Term, transformer: HeapDepFun => HeapDepFun): Term = {
-    val apps = term.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] &&  app.applicable.asInstanceOf[HeapDepFun] != functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]) => app})
-    var i = 0
-    val resFunMap = apps.map(f => {
-      i += 1
-      f -> Var(SimpleIdentifier("res@" + f.applicable.id.name + "@" + i), f.sort, false)
+  private def postsBody(phaseInfo: Map[Function, Int]): Term = {
+    assert(phase == 1, s"Postcondition function must be generated in phase 1, current phase is $phase")
+
+    def transformFunction(fun: HeapDepFun) = {
+      phaseInfo(fun) match {
+        case 1 => functionSupporter.postconditionVersion(fun);
+        case 2 => functionSupporter.definitionalVersion(fun);
+      }
+    }
+    var combinedTerm = And(translatedPosts)
+
+    if(translatedPres.nonEmpty)
+      combinedTerm = Implies(And(translatedPres), combinedTerm)
+    transformAllFunctionCalls(combinedTerm, transformFunction)
+  }
+
+  def transformAllFunctionCalls(term: Term, transformFun: HeapDepFun => HeapDepFun): Term = {
+    var replacedTerms = term.transform(
+      { case app: App if app.applicable.isInstanceOf[HeapDepFun] => app.copy(applicable = functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]))}
+    )(_ => true)
+    val limitedApps = replacedTerms.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app}).toSet
+
+    limitedApps.foreach(app => {
+      val origFun = app.applicable.asInstanceOf[HeapDepFun]
+      val newApp = App(transformFun(origFun.copy(id = origFun.id match {
+        case SuffixedIdentifier(prefix, _, _) => prefix
+        case _ => origFun.id
+      })), app.args)
+      replacedTerms = And(replacedTerms, newApp)
     })
-
-    var replacedTerms = term.replace(resFunMap.map(_._1), resFunMap.map(_._2))
-
-    resFunMap.foreach(v => {
-      val res = v._2
-      val args = v._1.args.map(_.replace(resFunMap.map(_._1), resFunMap.map(_._2)))
-      val origFun = v._1.applicable.asInstanceOf[HeapDepFun]
-      val limitedApp = App(functionSupporter.limitedVersion(origFun), args)
-
-      val funToCall = transformer(origFun)
-      val app = App(funToCall, args.appended(res))
-      replacedTerms = Let(res, limitedApp, And(replacedTerms, app))
-    })
-
-    replacedTerms
+    replacedTerms.replace(formalResult, App(limitedFunction, arguments))
   }
 
-  def postsVersionDef(): FunctionDef = {
-    FunctionDef(functionSupporter.postconditionVersion(function), arguments ++ Seq(formalResult), postsBody)
+  def postsVersionDef(phaseInfo: Map[Function, Int]): FunctionDef = {
+    FunctionDef(functionSupporter.postconditionVersion(function), arguments, postsBody(phaseInfo))
   }
 
-  def defVersionDef(): FunctionDef = {
-    FunctionDef(functionSupporter.definitionalVersion(function), arguments ++ Seq(formalResult), definitionalBody)
+  def defVersionDef(phaseInfo: Map[Function, Int]): FunctionDef = {
+    FunctionDef(functionSupporter.definitionalVersion(function), arguments, definitionalBody(phaseInfo))
+  }
+
+  def finalVersionDef(): FunctionDef = {
+    FunctionDef(functionSupporter.finalVersion(function), arguments, finalFunctionBody)
   }
 }

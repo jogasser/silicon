@@ -156,14 +156,14 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       v.decider.setProverOptions(proverOptions)
 
       openSymbExLogger(function)
-      val res = Seq(handleFunction(function))
+      val res = Seq(handleFunction(function, sInit))
 
       v.decider.resetProverOptions()
       symbExLog.closeMemberScope()
       res
     }
 
-    private def handleFunction(function: ast.Function): VerificationResult = {
+    private def handleFunction(function: ast.Function, initialState: State): VerificationResult = {
       val data = functionData(function)
       /* Phase 1: Check well-definedness of the specifications */
       phase1Data.get(function) match {
@@ -171,12 +171,12 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
           data.verificationFailures = data.verificationFailures :+ result1
           result1
 
-        case Some((result1, phase1data)) =>
+        case Some((result1, _)) =>
           if (function.body.isEmpty) {
             result1
           } else {
             /* Phase 2: Verify the function's postcondition */
-            val result2 = verify(function, phase1data)
+            val result2 = verify(function, initialState)
 
             result2 match {
               case fatalResult: FatalResult =>
@@ -226,14 +226,20 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       this.phase1Data = this.phase1Data + (function -> (result, phase1Data))
     }
 
-    private def verify(function: ast.Function, phase1data: Seq[Phase1Data])
+    private def verify(function: ast.Function, initialState: State)
                       : VerificationResult = {
-
+      val data = functionData(function)
+      val argsStore = data.formalArgs map {
+        case (localVar, t) => (localVar, (t, Option.when(evaluator.withExp)(LocalVarWithVersion(simplifyVariableName(t.id.name), localVar.typ)(localVar.pos, localVar.info, localVar.errT))))
+      }
+      val g = Store(argsStore + (function.result -> (data.formalResult, data.valFormalResultExp)))
+      val s = initialState.copy(g = g, h = Heap(), oldHeaps = OldHeaps(), functionRecorder = ActualFunctionRecorder(data),
+        conservingSnapshotGeneration = true,
+        assertReadAccessOnly = !Verifier.config.respectFunctionPrePermAmounts())
       val comment = ("-" * 5) + " Verification of function body and postcondition " + ("-" * 5)
       logger.debug(s"\n\n$comment\n")
       decider.prover.comment(comment)
 
-      val data = functionData(function)
       val posts = function.posts
       val body = function.body.get /* NOTE: Only non-abstract functions are expected! */
       val postconditionViolated = (offendingNode: ast.Exp) => PostconditionViolated(offendingNode, function)
@@ -241,25 +247,24 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       var recorders: Seq[FunctionRecorder] = Vector.empty
       val wExp = evaluator.withExp
 
-      val result = phase1data.foldLeft(Success(): VerificationResult) {
-        case (fatalResult: FatalResult, _) => fatalResult
-        case (intermediateResult, Phase1Data(sPre, bcsPre, bcsPreExp, pcsPre, pcsPreExp)) =>
-          intermediateResult && executionFlowController.locally(sPre, v)((s1, _) => {
-            decider.setCurrentBranchCondition(And(bcsPre), (BigAnd(bcsPreExp.map(_._1)), Option.when(wExp)(BigAnd(bcsPreExp.map(_._2.get)))))
-            decider.assume(pcsPre, Option.when(wExp)(DebugExp.createInstance(s"precondition of ${function.name}", pcsPreExp.get)), enforceAssumption = false)
-            v.decider.prover.saturate(Verifier.config.proverSaturationTimeouts.afterContract)
-            eval(s1, body, FunctionNotWellformed(function), v)((s2, tBody, bodyNew, _) => {
-              val debugExp = if (wExp) {
-                val e = ast.EqCmp(ast.Result(function.typ)(), body)(function.pos, function.info, function.errT)
-                val eNew = ast.EqCmp(ast.Result(function.typ)(), bodyNew.get)(function.pos, function.info, function.errT)
-                Some(DebugExp.createInstance(e, eNew))
-              } else { None }
-              decider.assume(BuiltinEquals(data.formalResult, tBody), debugExp)
-              consumes(s2, posts, false, postconditionViolated, v)((s3, _, _) => {
-                recorders :+= s3.functionRecorder
-                Success()})})
+      val result = executionFlowController.locally(s, v)((s0, _) => {
+        produces(s0, toSf(`?s`), function.pres, ContractNotWellformed, v)((s1, _) => {
+          eval(s1, body, FunctionNotWellformed(function), v)((s2, tBody, bodyNew, _) => {
+            val debugExp = if (wExp) {
+              val e = ast.EqCmp(ast.Result(function.typ)(), body)(function.pos, function.info, function.errT)
+              val eNew = ast.EqCmp(ast.Result(function.typ)(), bodyNew.get)(function.pos, function.info, function.errT)
+              Some(DebugExp.createInstance(e, eNew))
+            } else {
+              None
+            }
+            decider.assume(BuiltinEquals(data.formalResult, tBody), debugExp)
+            consumes(s2, posts, false, postconditionViolated, v)((s3, _, _) => {
+              recorders :+= s3.functionRecorder
+              Success()
+            })
           })
-      }
+        })
+      })
 
       data.advancePhase(recorders)
       result
@@ -294,26 +299,35 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
       freshVars foreach (x => sink.declare(ConstDecl(x)))
     }
 
+    var phaseInfo: Map[Function, Int] = Map()
+
     def defineFunctionsOfHeight(height: Int): Unit = {
-      functionData.filter(d => d._2.height == height).foreach(_._2.phase = 2)
+      functionData.filter(d => d._2.height == height).foreach(data => {
+        data._2.phase = 2
+        phaseInfo += (data._2.function -> 2)
+      })
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.defVersionDef()
+        data.defVersionDef(phaseInfo)
       })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
     def definePostFunctionsOfHeight(height: Int): Unit = {
-      functionData.filter(d => d._2.height == height).foreach(_._2.phase = 1)
+      functionData.filter(d => d._2.height == height).foreach(data => {
+        data._2.phase = 1
+        phaseInfo += (data._2.function -> 1)
+      })
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.postsVersionDef()
+        data.postsVersionDef(phaseInfo)
       })
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => decider.prover.declare(decl))
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
 
-    def defineFunctionsAfterVerification(sink: ProverLike): Unit = {
-      val decls = functionData.values.filter(_.phase == 2).map(data => data.defVersionDef())
+    def defineFunctionsAfterVerification(sink: ProverLike = decider.prover): Unit = {
+      functionData.foreach(data => { data._2.phase = 3 } )
+      val decls = functionData.values.map(data => data.finalVersionDef())
       decls.filter(d => !d.isInstanceOf[FunctionDef]).foreach(decl => sink.declare(decl))
       sink.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }

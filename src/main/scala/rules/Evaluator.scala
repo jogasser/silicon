@@ -974,20 +974,15 @@ object evaluator extends EvaluationRules {
               }
 
               val fun = v3.symbolConverter.toFunction(func);
-              val res = if(s3.functionData(func).phase == 0) {
-                val r = v3.decider.fresh(func.result)
-                v3.decider.assume(Equals(r._1, getFApp(functionSupporter.limitedVersion(fun), snap1 :: tArgs)), None)
-                r
-              } else {
+              val res = getFApp(functionSupporter.limitedVersion(fun), snap1 :: tArgs);
+              if(s3.functionData(func).phase > 0) {
                 val funToCall = s3.functionData(func).phase match {
                   case 1 => functionSupporter.postconditionVersion(fun)
-                  case _ => functionSupporter.definitionalVersion(fun)
+                  case 2 => functionSupporter.definitionalVersion(fun)
+                  case 3 => functionSupporter.finalVersion(fun)
                 }
-                val r = v3.decider.fresh(func.result)
-                val finalArgs = snap1 :: tArgs.appended(r._1)
+                val finalArgs = snap1 :: tArgs
                 v3.decider.assume(getFApp(funToCall, finalArgs), None)
-
-                r
               }
 
               val fr5 =
@@ -1006,7 +1001,7 @@ object evaluator extends EvaluationRules {
                 smDomainNeeded = s2.smDomainNeeded,
                 moreJoins = s2.moreJoins,
                 assertReadAccessOnly = s2.assertReadAccessOnly)
-              QB(s5, (res._1, funcAppNewOld), v3)
+              QB(s5, (res, funcAppNewOld), v3)
             })
             /* TODO: The join-function is heap-independent, and it is not obvious how a
              *       joined snapshot could be defined and represented

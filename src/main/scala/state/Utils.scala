@@ -135,6 +135,7 @@ package object utils {
     case PredicateTrigger(_, psf, args) => psf +: args
     case IsSortWrapper(s) => Seq(s)
     case AdtDiscriminator(_, t) => Seq(t)
+    case SortWrapper(s, _) => Seq(s)
   }
 
   /** @see [[viper.silver.ast.utility.Simplifier.simplify]] */

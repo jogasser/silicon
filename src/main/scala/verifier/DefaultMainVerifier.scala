@@ -220,42 +220,31 @@ class DefaultMainVerifier(config: Config,
 
     allProvers.saturate(config.proverSaturationTimeouts.afterPrelude)
 
-    var phase1Height: Option[Int] = None
-    functionsSupporter.units.foreach (function => {
-      if(phase1Height.isDefined && functionData(function).height < phase1Height.get) {
-        functionsSupporter.definePostFunctionsOfHeight(phase1Height.get)
-      }
 
-      phase1Height = Some(functionData(function).height)
-      functionsSupporter.checkSpecificationWelldefinedness(createInitialState(function, program, functionData, predicateData), function)
+    var functionVerificationResults: List[VerificationResult] = List();
+    functionData.groupBy(_._2.height).toSeq.sortBy(_._1)(Ordering.Int.reverse).foreach(entry => {
+      val height = entry._1
+      val functionUnits = entry._2
+
+      functionUnits.keys.foreach (function => {
+        functionsSupporter.checkSpecificationWelldefinedness(createInitialState(function, program, functionData, predicateData), function)
+      })
+
+      functionsSupporter.definePostFunctionsOfHeight(height)
+
+      functionVerificationResults = functionVerificationResults ++ functionUnits.keys.flatMap(function => {
+        val startTime = System.currentTimeMillis()
+        val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
+          .flatMap(extractAllVerificationResults)
+
+        val elapsed = System.currentTimeMillis() - startTime
+        reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results))
+        logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
+        setErrorScope(results, function)
+      }).toList
+      functionsSupporter.defineFunctionsOfHeight(height)
     })
-    if(phase1Height.isDefined) {
-      functionsSupporter.definePostFunctionsOfHeight(phase1Height.get)
-    }
-
-    var phase2Height: Option[Int] = None
-    /* TODO: A workaround for Silver issue #94. toList must be before flatMap.
-     *       Otherwise Set will be used internally and some error messages will be lost.
-     */
-    val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
-      if(phase2Height.isDefined && functionData(function).height < phase2Height.get) {
-        functionsSupporter.defineFunctionsOfHeight(phase2Height.get)
-      }
-
-      phase2Height = Some(functionData(function).height)
-      val startTime = System.currentTimeMillis()
-      val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
-        .flatMap(extractAllVerificationResults)
-
-      val elapsed = System.currentTimeMillis() - startTime
-      reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results))
-      logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
-      setErrorScope(results, function)
-    })
-    if(phase2Height.isDefined) {
-      functionsSupporter.defineFunctionsOfHeight(phase2Height.get)
-    }
-
+    functionsSupporter.defineFunctionsAfterVerification()
 
     val predicateVerificationResults = predicateSupporter.units.toList flatMap (predicate => {
       val startTime = System.currentTimeMillis()
