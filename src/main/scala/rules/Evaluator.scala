@@ -1639,6 +1639,7 @@ object evaluator extends EvaluationRules {
           * Keep this code in sync with [[viper.silicon.supporters.ExpressionTranslator.translate]]
           *
           */
+        // TODO jga investigate for quantifier encoding
         app.copy(applicable = if (s.currentMember.get.isInstanceOf[ast.Function]) functionSupporter.limitedVersion(fun) else fun)
       case other =>
         other

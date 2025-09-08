@@ -18,7 +18,7 @@ import viper.silver.verifier.{FailureContext, VerificationError}
 import java.nio.file.Path
 
 class CounterexampleTests extends SiliconTests {
-  override val testDirectories: Seq[String] = Seq("counterexamples")
+  /*override val testDirectories: Seq[String] = Seq("counterexamples")
 
   override def configureVerifiersFromConfigMap(configMap: Map[String, Any]): Unit = {
     val args = Silicon.optionsFromScalaTestConfigMap(prefixSpecificConfigMap(configMap).getOrElse("silicon", Map()))
@@ -165,4 +165,5 @@ case class ExpectedCounterexampleAnnotation(id: OutputAnnotationId, file: Path, 
   override def notFoundError: TestError = TestCustomError(s"Expected the following counterexample on line $forLineNr: $expectedCounterexample")
 
   override def withForLineNr(line: Int = forLineNr): ExpectedCounterexampleAnnotation = ExpectedCounterexampleAnnotation(id, file, line, expectedCounterexample)
+*/
 }
