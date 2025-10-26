@@ -403,13 +403,27 @@ abstract class ProverStdIO(uniqueId: String,
 
     emit(termConverter.convert(decl))
 
-    if(argSorts.isEmpty && resultSort.isInstanceOf[sorts.Seq]) {
-      assume(Less(SeqLength(App(fun, Seq())), IntLiteral(10)))
-
-      // TODO go down recursively
+    if(argSorts.isEmpty) {
+      resultSort match {
+        case s: sorts.Seq => assumeSeqBoundRec(App(fun, Seq()), s)
+        case _ =>
+      }
     }
 
     fun
+  }
+
+  def assumeSeqBoundRec(term: Term, sort: sorts.Seq): Unit = {
+    val bound = 5
+
+    assume(Less(SeqLength(term), IntLiteral(bound)))
+    sort.elementsSort match {
+      case s: sorts.Seq =>
+        for (i <- 0 until bound) {
+          assumeSeqBoundRec(SeqAt(term, IntLiteral(i)), s)
+        }
+      case _ =>
+    }
   }
 
   def declare(decl: Decl): Unit = {
