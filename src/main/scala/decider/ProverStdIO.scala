@@ -14,7 +14,7 @@ import viper.silicon.common.config.Version
 import viper.silicon.interfaces.decider.{Prover, Result, Sat, Unknown, Unsat}
 import viper.silicon.reporting.{ExternalToolError, ProverInteractionFailed}
 import viper.silicon.state.IdentifierFactory
-import viper.silicon.state.terms._
+import viper.silicon.state.terms.{sorts, _}
 import viper.silicon.verifier.Verifier
 import viper.silver.verifier.{DefaultDependency => SilDefaultDependency}
 import viper.silicon.{Config, Map, toMap}
@@ -402,6 +402,12 @@ abstract class ProverStdIO(uniqueId: String,
     val decl = FunctionDecl(fun)
 
     emit(termConverter.convert(decl))
+
+    if(argSorts.isEmpty && resultSort.isInstanceOf[sorts.Seq]) {
+      assume(Less(SeqLength(App(fun, Seq())), IntLiteral(10)))
+
+      // TODO go down recursively
+    }
 
     fun
   }

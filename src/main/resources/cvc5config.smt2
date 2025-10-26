@@ -13,6 +13,14 @@
 (set-option :incremental true) ; required for push and pop
 (set-option :condense-function-values false)
 (set-option :strict-parsing false)
+(set-option :mbqi true)
+(set-option :cbqi true)
+(set-option :cegqi true)
+(set-option :finite-model-find true)
+(set-option :e-matching false)
+(set-option :fmf-fun true)
+(set-option :fmf-mbqi fmc)
+(set-option :seq-array eager)
 (set-option :produce-models true) ; enabled to support proverStdIO. retrieveAndSaveModel
 
 ; Translated from z3config

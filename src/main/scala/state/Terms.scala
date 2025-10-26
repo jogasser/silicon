@@ -160,12 +160,12 @@ object AdtDecls extends CondFlyweightFactory[Seq[AdtDecl], AdtDecls, AdtDecls] {
   override def actualCreate(args: Seq[AdtDecl]): AdtDecls = new AdtDecls(args)
 }
 
-class AdtConstructorDecl(val id: Identifier, val args: Seq[(String, Sort)]) extends ConditionalFlyweight[(Identifier, Seq[(String, Sort)]), AdtConstructorDecl]{
-  override val equalityDefiningMembers: (Identifier, Seq[(String, Sort)]) = (id, args);
+class AdtConstructorDecl(val id: Identifier, val args: Seq[(Identifier, Sort)]) extends ConditionalFlyweight[(Identifier, Seq[(Identifier, Sort)]), AdtConstructorDecl]{
+  override val equalityDefiningMembers: (Identifier, Seq[(Identifier, Sort)]) = (id, args);
 }
 
-object AdtConstructorDecl extends CondFlyweightFactory[(Identifier, Seq[(String, Sort)]), AdtConstructorDecl, AdtConstructorDecl] {
-  override def actualCreate(args: (Identifier, Seq[(String, Sort)])): AdtConstructorDecl = new AdtConstructorDecl(args._1, args._2)
+object AdtConstructorDecl extends CondFlyweightFactory[(Identifier, Seq[(Identifier, Sort)]), AdtConstructorDecl, AdtConstructorDecl] {
+  override def actualCreate(args: (Identifier, Seq[(Identifier, Sort)])): AdtConstructorDecl = new AdtConstructorDecl(args._1, args._2)
 }
 
 class AdtConstructor(val id: Identifier, val argSorts: Seq[Sort], val resultSort: Sort) extends Applicable with ConditionalFlyweight[(Identifier, Seq[Sort], Sort), AdtConstructor] {
@@ -1186,7 +1186,7 @@ object Equals extends ((Term, Term) => BooleanTerm) {
 
             BuiltinEquals(e0, e1)
 
-          case _: sorts.Seq | _: sorts.Set | _: sorts.Multiset | _: sorts.Map => CustomEquals(e0, e1)
+          case _: sorts.Multiset | _: sorts.Map => CustomEquals(e0, e1)
           case _ => BuiltinEquals(e0, e1)
         }
     }

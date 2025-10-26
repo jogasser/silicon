@@ -207,7 +207,7 @@ trait ExpressionTranslator {
       case ast.SeqLength(e) => SeqLength(f(e))
       case ast.SeqTake(e0, e1) => SeqTake(f(e0), f(e1))
       case ast.EmptySeq(typ) => SeqNil(toSort(typ))
-      case ast.RangeSeq(e0, e1) => SeqRanged(f(e0), f(e1))
+      case range: ast.RangeSeq=> translate(toSort)(ast.FuncApp(SequencesContributor.rangeFun, Seq(range.low, range.high))(range.pos, range.info, range.errT))
       case ast.SeqUpdate(e0, e1, e2) => SeqUpdate(f(e0), f(e1), f(e2))
 
       case ast.ExplicitSeq(es) =>

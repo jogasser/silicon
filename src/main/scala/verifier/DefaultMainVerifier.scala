@@ -26,8 +26,8 @@ import viper.silicon.logger.{MemberSymbExLogger, SymbExLogger}
 import viper.silicon.reporting.{MultiRunRecorders, condenseToViperResult}
 import viper.silicon.state._
 import viper.silicon.state.terms.sorts.Snap
-import viper.silicon.state.terms.{AdtDecl, AdtDecls, Decl, Sort, Term, sorts}
-import viper.silicon.supporters.{AnnotationSupporter, DefaultDomainsContributor, DefaultMapsContributor, DefaultMultisetsContributor, DefaultPredicateVerificationUnitProvider, DefaultSequencesContributor, DefaultSetsContributor, MagicWandSnapFunctionsContributor, PredicateData}
+import viper.silicon.state.terms.{AdtDecl, AdtDecls, Decl, FunctionDef, Sort, SortWrapperId, Term, sorts}
+import viper.silicon.supporters.{AnnotationSupporter, DefaultDomainsContributor, DefaultMapsContributor, DefaultMultisetsContributor, DefaultPredicateVerificationUnitProvider, DefaultSequencesContributor, DefaultSetsContributor, MagicWandSnapFunctionsContributor, PredicateData, SequencesContributor}
 import viper.silicon.supporters.qps._
 import viper.silicon.supporters.functions.{DefaultFunctionVerificationUnitProvider, FunctionData}
 import viper.silicon.utils.Counter
@@ -195,6 +195,11 @@ class DefaultMainVerifier(config: Config,
     if (config.conditionalizePermissions()) {
       program = new ConditionalPermissionRewriter().rewrite(program, !config.respectFunctionPrePermAmounts()).asInstanceOf[ast.Program]
     }
+
+    program = program.copy(functions = program.functions ++ Seq(SequencesContributor.rangeFun))(program.pos, program.info, program.errT)
+    program = program.transform({
+      case ast.RangeSeq(low, high) => ast.FuncApp(SequencesContributor.rangeFun, Seq(low, high))()
+    })
 
     if (config.printTranslatedProgram()) {
       println(program)
@@ -469,8 +474,6 @@ class DefaultMainVerifier(config: Config,
   )
 
   private val sortDeclarationOrder: Seq[PreambleContributor[_, _, _]] = Seq(
-    sequencesContributor,
-    setsContributor,
     multisetsContributor,
     mapsContributor,
     domainsContributor,
@@ -500,9 +503,7 @@ class DefaultMainVerifier(config: Config,
      * Multisets depend on sets ($Multiset.fromSet).
      * Maps depend on sets (Map_domain, Map_range, Map_cardinality).
      */
-    setsContributor,
     multisetsContributor,
-    sequencesContributor,
     mapsContributor,
     domainsContributor,
     fieldValueFunctionsContributor,
@@ -513,8 +514,6 @@ class DefaultMainVerifier(config: Config,
   )
 
   private val axiomDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] = Seq(
-    sequencesContributor,
-    setsContributor,
     multisetsContributor,
     mapsContributor,
     domainsContributor,
@@ -546,13 +545,10 @@ class DefaultMainVerifier(config: Config,
       sortWrapperDeclarationOrder.flatMap(component => component.sortsAfterAnalysis) ++
       backendTypes.map(t => symbolConverter.toSort(t))
 
-    emitSortWrappers(collectedSorts, sink)
-
-    val adts = program.extensions.collect { case t: Adt => t }
-    if(adts.length > 0) {
-      sink.comment("/" * 10 + " User defined Adts")
-      emitDataTypes(adts, sink)
-    }
+    val sortWrapperDecl = getSortWrappers(collectedSorts, sink);
+    val adts = program.extensions.collect({ case t: Adt => t })
+    sink.comment("/" * 10 + " Data Types")
+    emitDataTypes(adts, sortWrapperDecl, sink)
     sink.comment("/" * 10 + " Symbols")
     symbolDeclarationOrder foreach (component =>
       component.declareSymbolsAfterAnalysis(sink))
@@ -569,36 +565,38 @@ class DefaultMainVerifier(config: Config,
     axiomDeclarationOrder foreach (component =>
       component.emitAxiomsAfterAnalysis(sink))
 
+    sequencesContributor.sortsAfterAnalysis.foreach(s => {
+      preambleReader.emitParametricPreamble("/sequences_polymorphic.smt2", Map("$S$" -> termConverter.convert(s), "$SAN$" -> termConverter.convertSanitized(s)), sink)
+    })
+
     (functionData, predicateData)
   }
 
-  private def emitDataTypes(adts: Iterable[Adt], sink: ProverLike): Unit = {
+  private def emitDataTypes(adts: Iterable[Adt], sortWrappers: AdtDecl, sink: ProverLike): Unit = {
     val decls = adts.map(adt => {
       val typeVars = adt.typVars.map(_.name)
       val constructors = adt.constructors.map(con =>
         terms.AdtConstructorDecl(Identifier(con.adtName + "$" + con.name),
-          con.formalArgs.map(v => con.adtName + "$" + v.name -> symbolConverter.toSort(v.typ))
+          con.formalArgs.map(v => Identifier(con.adtName + "$" + v.name) -> symbolConverter.toSort(v.typ))
         )
       )
 
       AdtDecl(Identifier(adt.name), typeVars, constructors)
     }).toSeq
-    sink.declare(AdtDecls(decls))
+    sink.declare(AdtDecls(Seq(sortWrappers) ++ decls))
   }
 
-  private def emitSortWrappers(ss: Iterable[Sort], sink: ProverLike): Unit = {
+  private def getSortWrappers(ss: Iterable[Sort], sink: ProverLike): AdtDecl = {
     sink.comment("Declaring sort wrappers")
     val unitConstructor = terms.AdtConstructorDecl(Identifier("$Snap.unit"), Seq())
-    val combineConstructor = terms.AdtConstructorDecl(Identifier("$Snap.combine"), Seq("$Snap.first" -> Snap, "$Snap.second" -> Snap))
+    val combineConstructor = terms.AdtConstructorDecl(Identifier("$Snap.combine"), Seq(Identifier("$Snap.first") -> Snap, Identifier("$Snap.second") -> Snap))
     val constructors =
       unitConstructor +:
       ss.map(sort => {
-      val sanitizedSortString = termConverter.convertSanitized(sort)
-      terms.AdtConstructorDecl(Identifier("$SortWrappers." + sanitizedSortString + "To$Snap"), Seq("$SortWrappers.$SnapTo" + sanitizedSortString -> sort))
+      terms.AdtConstructorDecl(SortWrapperId(sort, Snap), Seq(SortWrapperId(Snap, sort) -> sort))
     }).toSeq :+ combineConstructor
 
-    val decl = AdtDecl(Identifier("$Snap"), Seq(), constructors)
-    sink.declare(AdtDecls(Seq(decl)))
+    AdtDecl(Identifier("$Snap"), Seq(), constructors)
   }
 
   private def setErrorScope(results: Seq[VerificationResult], scope: Member): Seq[VerificationResult] = {

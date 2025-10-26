@@ -53,7 +53,8 @@ class DefaultSetsContributor(val domainTranslator: DomainsTranslator[Term], conf
        * is thus needed. Currently, such an instantiation is supported only for Viper types.
        * Hence, we use an embedding of Silicon's sorts.Snap into Viper's type system, via a Viper
        * extension type. */
-      setTypeInstances += ast.SetType(viper.silicon.utils.ast.ViperEmbedding(sorts.Snap))
+      // TODO JGA, Snap<Set<Snap>> will not work with CVC5's sets
+      // setTypeInstances += ast.SetType(viper.silicon.utils.ast.ViperEmbedding(sorts.Snap))
     }
 
     /* The domain of maps depend on sets, for representing the domain and codomain/range of any map.
