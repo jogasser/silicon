@@ -8,6 +8,7 @@ package viper.silicon.supporters.functions
 
 import scala.annotation.unused
 import com.typesafe.scalalogging.LazyLogging
+import state.FunctionCallTransformer
 import viper.silicon.state.{Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
@@ -192,7 +193,7 @@ class FunctionData(val programFunction: ast.Function,
     assert(phase == 2, s"Definitional function must be generated in phase 2, current phase is $phase")
 
     def transformFunction(fun: HeapDepFun) = {
-      phaseInfo(fun) match {
+      phaseInfo(functionSupporter.initialVersion(fun)) match {
         case 1 => functionSupporter.postconditionVersion(fun);
         case 2 => functionSupporter.definitionalVersion(fun);
       }
@@ -212,7 +213,7 @@ class FunctionData(val programFunction: ast.Function,
     assert(phase == 1, s"Postcondition function must be generated in phase 1, current phase is $phase")
 
     def transformFunction(fun: HeapDepFun) = {
-      phaseInfo(fun) match {
+      phaseInfo(functionSupporter.initialVersion(fun)) match {
         case 1 => functionSupporter.postconditionVersion(fun);
         case 2 => functionSupporter.definitionalVersion(fun);
       }
@@ -225,19 +226,10 @@ class FunctionData(val programFunction: ast.Function,
   }
 
   def transformAllFunctionCalls(term: Term, transformFun: HeapDepFun => HeapDepFun): Term = {
-    var replacedTerms = term.transform(
-      { case app: App if app.applicable.isInstanceOf[HeapDepFun] => app.copy(applicable = functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]))}
+    val functionCallConditions = FunctionCallTransformer.transform(term, program, transformFun)
+    val replacedTerms = And(term, functionCallConditions).transform(
+      { case app: App if app.applicable.isInstanceOf[HeapDepFun] && !app.applicable.id.isInstanceOf[SuffixedIdentifier] => app.copy(applicable = functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]))}
     )(_ => true)
-    val limitedApps = replacedTerms.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app}).toSet
-
-    limitedApps.foreach(app => {
-      val origFun = app.applicable.asInstanceOf[HeapDepFun]
-      val newApp = App(transformFun(origFun.copy(id = origFun.id match {
-        case SuffixedIdentifier(prefix, _, _) => prefix
-        case _ => origFun.id
-      })), app.args)
-      replacedTerms = And(replacedTerms, newApp)
-    })
     replacedTerms.replace(formalResult, App(limitedFunction, arguments))
   }
 
