@@ -414,7 +414,7 @@ abstract class ProverStdIO(uniqueId: String,
   }
 
   def assumeSeqBoundRec(term: Term, sort: sorts.Seq): Unit = {
-    val bound = 5
+    val bound = 10
 
     assume(Less(SeqLength(term), IntLiteral(bound)))
     sort.elementsSort match {
