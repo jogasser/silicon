@@ -1,6 +1,8 @@
-package state
+package viper.silicon.state
 
 import viper.silicon.rules.functionSupporter
+import viper.silicon.state.SuffixedIdentifier
+import viper.silicon.state._
 import viper.silicon.state.terms._
 import viper.silver.ast
 
@@ -21,6 +23,28 @@ import viper.silver.ast
   * Thus, the transformation of A && B is tr(A) && (A ==> tr(B)).
   */
 object FunctionCallTransformer {
+
+  def getTransformFunction(s: State): (HeapDepFun => HeapDepFun) = {
+    (f: HeapDepFun) => {
+      val origFun = s.program.functions.find(fun => fun.name.equals(functionSupporter.initialVersion(f).id.name))
+      origFun match {
+        case Some(fun) => s.functionData(fun).phase match {
+          case 1 => functionSupporter.postconditionVersion(f)
+          case 2 => functionSupporter.definitionalVersion(f)
+          case 3 => functionSupporter.finalVersion(f)
+        }
+        case None => f
+      }
+    }
+  }
+
+  def transformBody(body: Term, p: ast.Program, transformFun: HeapDepFun => HeapDepFun): Term = {
+    val functionCallConditions = transform(body, p, transformFun)
+    And(body, functionCallConditions).transform(
+      { case app: App if app.applicable.isInstanceOf[HeapDepFun] && !app.applicable.id.isInstanceOf[SuffixedIdentifier] => app.copy(applicable = functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]))}
+    )(_ => true)
+  }
+
   def transform(t: Term, p: ast.Program, transformFun: HeapDepFun => HeapDepFun): Term = {
     val res = t match {
       case _:Literal => True

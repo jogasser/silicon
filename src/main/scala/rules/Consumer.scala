@@ -613,7 +613,7 @@ object consumer extends ConsumptionRules {
       eval(s2, e, pve, v1)((s3, t, eNew, v2) => {
         val termToAssert = t match {
           case Quantification(q, vars, body, trgs, name, isGlob, weight) =>
-            val transformed = FunctionPreconditionTransformer.transform(body, s3.program)
+            val transformed = FunctionCallTransformer.transformBody(body, s3.program, FunctionCallTransformer.getTransformFunction(s3))
             v2.decider.assume(Quantification(q, vars, transformed, trgs, name+"_precondition", isGlob, weight), Option.when(withExp)(e), eNew)
             Quantification(q, vars, Implies(transformed, body), trgs, name, isGlob, weight)
           case _ => t

@@ -8,8 +8,7 @@ package viper.silicon.supporters.functions
 
 import scala.annotation.unused
 import com.typesafe.scalalogging.LazyLogging
-import state.FunctionCallTransformer
-import viper.silicon.state.{Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
+import viper.silicon.state.{FunctionCallTransformer, Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.FatalResult
@@ -226,10 +225,7 @@ class FunctionData(val programFunction: ast.Function,
   }
 
   def transformAllFunctionCalls(term: Term, transformFun: HeapDepFun => HeapDepFun): Term = {
-    val functionCallConditions = FunctionCallTransformer.transform(term, program, transformFun)
-    val replacedTerms = And(term, functionCallConditions).transform(
-      { case app: App if app.applicable.isInstanceOf[HeapDepFun] && !app.applicable.id.isInstanceOf[SuffixedIdentifier] => app.copy(applicable = functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]))}
-    )(_ => true)
+    val replacedTerms = FunctionCallTransformer.transformBody(term, program, transformFun)
     replacedTerms.replace(formalResult, App(limitedFunction, arguments))
   }
 
