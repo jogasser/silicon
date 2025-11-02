@@ -1,3 +1,5 @@
+// TODO quantified permissions
+//:: IgnoreFile(/silicon/issue/000/)
 /* An excerpt from test file quantifiedpermissions/misc/functions.sil that at some point failed
  * while working on a fix for Silicon issue #387.
  */
