@@ -13,7 +13,7 @@ import com.typesafe.scalalogging.LazyLogging
 import viper.silicon.common.config.Version
 import viper.silicon.interfaces.decider.{Prover, Result, Sat, Unknown, Unsat}
 import viper.silicon.reporting.{ExternalToolError, ProverInteractionFailed}
-import viper.silicon.state.IdentifierFactory
+import viper.silicon.state.{IdentifierFactory, Identifier}
 import viper.silicon.state.terms.{sorts, _}
 import viper.silicon.verifier.Verifier
 import viper.silver.verifier.{DefaultDependency => SilDefaultDependency}
@@ -395,6 +395,8 @@ abstract class ProverStdIO(uniqueId: String,
 
     logToFile("; " + sanitisedStr)
   }
+
+  def freshIdentifier(name: String): Identifier = identifierFactory.fresh(name)
 
   def fresh(name: String, argSorts: Seq[Sort], resultSort: Sort): Fun = {
     val id = identifierFactory.fresh(name)

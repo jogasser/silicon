@@ -348,7 +348,6 @@ class TermToSMTLib2Converter
       parens(text("let") <+> parens(docBindings) <+> render(body))
 
     case MagicWandSnapshot(mwsf) => render(mwsf)
-    case MWSFLookup(mwsf, snap) => renderApp("MWSF_apply", Seq(mwsf, snap), sorts.Snap)
 
     case AdtDiscriminator(id, rcv) => parens(parens(text("_") <+> text("is") <+> render(id)) <+> render(rcv))
 

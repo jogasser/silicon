@@ -9,6 +9,7 @@ package viper.silicon.interfaces.decider
 import viper.silicon.debugger.DebugAxiom
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.common.config.Version
+import viper.silicon.state.Identifier
 import viper.silver.components.StatefulComponent
 import viper.silicon.{Config, Map}
 import viper.silicon.state.terms._
@@ -44,6 +45,7 @@ trait Prover extends ProverLike with StatefulComponent {
   def start(userArgsString: Option[String]): Unit
   def assert(goal: Term, timeout: Option[Int] = None): Boolean
   def check(timeout: Option[Int] = None): Result
+  def freshIdentifier(id: String): Identifier
   def fresh(id: String, argSorts: Seq[Sort], resultSort: Sort): Function
   def statistics(): Map[String, String]
   def hasModel(): Boolean
