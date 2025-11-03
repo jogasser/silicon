@@ -17,16 +17,17 @@ object SequencesContributor {
   lazy val rangeFun: ast.Function = {
     val i = ast.LocalVar("i", ast.Int)();
     val j = ast.LocalVar("j", ast.Int)();
-    val recCall = ast.FuncApp("seq.range", Seq(ast.Sub(i, ast.IntLit(1)())(), j))(pos =NoPosition, info=NoInfo, typ=ast.SeqType(ast.Int), errT=NoTrafos)
+    val recCall = ast.FuncApp("seq.range", Seq(ast.Add(i, ast.IntLit(1)())(), j))(pos =NoPosition, info=NoInfo, typ=ast.SeqType(ast.Int), errT=NoTrafos)
+    val result = ast.Result(ast.SeqType(ast.Int))()
     ast.Function("seq.range",
       Seq(ast.LocalVarDecl("i", ast.Int)(), ast.LocalVarDecl("j", ast.Int)()),
       ast.SeqType(ast.Int),
       Seq(), // pres
       Seq(
-        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqLength(ast.Result(ast.SeqType(ast.Int))())(), ast.Sub(j, i)())())(),
-        ast.Implies(ast.Not(ast.GtCmp(j, i)())(), ast.EqCmp(ast.SeqLength(ast.Result(ast.SeqType(ast.Int))())(), ast.IntLit(0)())())(),
-        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqTake(ast.Result(ast.SeqType(ast.Int))(), ast.IntLit(1)())(), ast.ExplicitSeq(Seq(i))())())(),
-        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqDrop(ast.Result(ast.SeqType(ast.Int))(), ast.IntLit(1)())(), recCall)())()
+        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqLength(result)(), ast.Sub(j, i)())())(),
+        ast.Implies(ast.Not(ast.GtCmp(j, i)())(), ast.EqCmp(result, ast.EmptySeq(ast.Int)())())(),
+        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqTake(result, ast.IntLit(1)())(), ast.ExplicitSeq(Seq(i))())())(),
+        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqDrop(result, ast.IntLit(1)())(), recCall)())(),
       ), // posts
       Some(ast.CondExp(
         ast.GtCmp(j, i)(),
