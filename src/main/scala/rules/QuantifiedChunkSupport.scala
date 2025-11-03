@@ -506,6 +506,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
         // including necessary sort wrapper applications
         val snapToCodomainTermsSubstitution: Map[Term, Term] =
         codomainQVars.zip(fromSnapTree(qvar, codomainQVars)).to(Map)
+    snapToCodomainTermsSubstitution.values.collect({ case s: SortWrapper => s }).foreach(s => v.decider.assumeSortWrapper(s))
 
         // Rewrite c(r_1, r_2, ...) to c(first(s), second(s), ...)
         val transformedOptSmDomainDefinitionCondition =
@@ -1293,7 +1294,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                 (result, s4, h2, Some(consumedChunk))
               })((s4, optCh, v3) =>
                 optCh match {
-                  case Some(ch) if returnSnap => Q(s4, s4.h, Some(ch.snapshotMap.convert(sorts.Snap)), v3)
+                  case Some(ch) if returnSnap => Q(s4, s4.h, Some(v3.decider.assumeSortWrapper(ch.snapshotMap.convert(sorts.Snap))), v3)
                   case None if returnSnap =>
                     Q(s4, s4.h, Some(freshSnap(sorts.Snap, v3)), v3)
                   case _ => Q(s4, s4.h, None, v3)
@@ -1331,7 +1332,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                       partiallyConsumedHeap = Some(h3),
                       constrainableARPs = s.constrainableARPs,
                       smCache = smCache2)
-                    Q(s3, h3, Some(smDef2.sm.convert(sorts.Snap)), v)
+                    Q(s3, h3, Some(v.decider.assumeSortWrapper(smDef2.sm.convert(sorts.Snap))), v)
                   } else {
                     Q(s2, h3, None, v)
                   }
@@ -1418,7 +1419,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
       })((s4, optCh, v2) =>
         optCh match {
           case Some(ch) if returnSnap =>
-            val snap = ResourceLookup(resource, ch.snapshotMap, arguments, s4.program).convert(sorts.Snap)
+            val snap = v2.decider.assumeSortWrapper(ResourceLookup(resource, ch.snapshotMap, arguments, s4.program).convert(sorts.Snap))
             Q(s4, s4.h, Some(snap), v2)
           case None if returnSnap =>
             Q(s4, s4.h, Some(freshSnap(sorts.Snap, v2)), v2)
@@ -1458,7 +1459,7 @@ object quantifiedChunkSupporter extends QuantifiedChunkSupport {
                 v = v)
             val s2 = s1.copy(functionRecorder = s1.functionRecorder.recordFvfAndDomain(smDef1),
               smCache = smCache1)
-            val snap = ResourceLookup(resource, smDef1.sm, arguments, s2.program).convert(sorts.Snap)
+            val snap = v.decider.assumeSortWrapper(ResourceLookup(resource, smDef1.sm, arguments, s2.program).convert(sorts.Snap))
             Q(s2, h1, Some(snap), v)
           } else {
             Q(s1, h1, None, v)

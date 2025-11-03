@@ -218,18 +218,31 @@ class DefaultMainVerifier(config: Config,
 
     allProvers.saturate(config.proverSaturationTimeouts.afterPrelude)
 
-    /* TODO: A workaround for Silver issue #94. toList must be before flatMap.
-     *       Otherwise Set will be used internally and some error messages will be lost.
-     */
-    val functionVerificationResults = functionsSupporter.units.toList flatMap (function => {
-      val startTime = System.currentTimeMillis()
-      val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
-        .flatMap(extractAllVerificationResults)
-      val elapsed = System.currentTimeMillis() - startTime
-      reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results))
-      logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
-      setErrorScope(results, function)
+
+    var functionVerificationResults: List[VerificationResult] = List();
+    functionData.groupBy(_._2.height).toSeq.sortBy(_._1)(Ordering.Int.reverse).foreach(entry => {
+      val height = entry._1
+      val functionUnits = entry._2
+
+      functionUnits.keys.foreach (function => {
+        functionsSupporter.checkSpecificationWelldefinedness(createInitialState(function, program, functionData, predicateData), function)
+      })
+
+      functionsSupporter.definePostFunctionsOfHeight(height)
+
+      functionVerificationResults = functionVerificationResults ++ functionUnits.keys.flatMap(function => {
+        val startTime = System.currentTimeMillis()
+        val results = functionsSupporter.verify(createInitialState(function, program, functionData, predicateData), function)
+          .flatMap(extractAllVerificationResults)
+
+        val elapsed = System.currentTimeMillis() - startTime
+        reporter report VerificationResultMessage(s"silicon", function, elapsed, condenseToViperResult(results))
+        logger debug s"Silicon finished verification of function `${function.name}` in ${viper.silver.reporter.format.formatMillisReadably(elapsed)} seconds with the following result: ${condenseToViperResult(results).toString}"
+        setErrorScope(results, function)
+      }).toList
+      functionsSupporter.defineFunctionsOfHeight(height)
     })
+    functionsSupporter.defineFunctionsAfterVerification()
 
     val predicateVerificationResults = predicateSupporter.units.toList flatMap (predicate => {
       val startTime = System.currentTimeMillis()
@@ -249,6 +262,7 @@ class DefaultMainVerifier(config: Config,
     functionsSupporter.declareSortsAfterVerification(_verificationPoolManager.pooledVerifiers)
     predicateSupporter.declareSymbolsAfterVerification(_verificationPoolManager.pooledVerifiers)
     functionsSupporter.declareSymbolsAfterVerification(_verificationPoolManager.pooledVerifiers)
+    functionsSupporter.defineFunctionsAfterVerification(_verificationPoolManager.pooledVerifiers)
     predicateSupporter.emitAxiomsAfterVerification(_verificationPoolManager.pooledVerifiers)
     functionsSupporter.emitAxiomsAfterVerification(_verificationPoolManager.pooledVerifiers)
     _verificationPoolManager.pooledVerifiers.comment("End function- and predicate-related preamble")
@@ -522,16 +536,15 @@ class DefaultMainVerifier(config: Config,
       component.declareSortsAfterAnalysis(sink))
 
     sink.comment("/" * 10 + " Sort wrappers")
-    emitSortWrappers(Seq(sorts.Int, sorts.Bool, sorts.Ref, sorts.Perm), sink)
-
-    sortWrapperDeclarationOrder foreach (component =>
-      emitSortWrappers(component.sortsAfterAnalysis, sink))
-
     val backendTypes = new mutable.LinkedHashSet[BackendType]
     program.visit{
       case t: BackendType => backendTypes.add(t)
     }
-    emitSortWrappers(backendTypes map symbolConverter.toSort, sink)
+    val collectedSorts = Seq(sorts.Int, sorts.Bool, sorts.Ref, sorts.Perm) ++
+      sortWrapperDeclarationOrder.flatMap(component => component.sortsAfterAnalysis) ++
+      backendTypes.map(t => symbolConverter.toSort(t))
+
+    emitSortWrappers(collectedSorts, sink)
 
     sink.comment("/" * 10 + " Symbols")
     symbolDeclarationOrder foreach (component =>
@@ -553,41 +566,19 @@ class DefaultMainVerifier(config: Config,
   }
 
   private def emitSortWrappers(ss: Iterable[Sort], sink: ProverLike): Unit = {
-    if (ss.nonEmpty) {
-      sink.comment("Declaring additional sort wrappers")
+    sink.comment("Declaring sort wrappers")
 
-      ss.foreach(sort => {
-        val toSnapWrapper = terms.SortWrapperDecl(sort, sorts.Snap)
-        val fromSnapWrapper = terms.SortWrapperDecl(sorts.Snap, sort)
+    // TODO jga: move this to a proper ADT declaration once its ready
+    var str = "(declare-datatypes () (($Snap $Snap.unit"
+    ss.foreach(sort => {
+      val sanitizedSortString = termConverter.convertSanitized(sort)
+      val sortString = termConverter.convert(sort)
 
-        sink.declare(toSnapWrapper)
-        sink.declare(fromSnapWrapper)
+      str += (" ($SortWrappers." + sanitizedSortString + "To$Snap ($SortWrappers.$SnapTo" + sanitizedSortString + " "+ sortString + "))")
+    })
+    str += " ($Snap.combine ($Snap.first $Snap) ($Snap.second $Snap)))))"
 
-        val sanitizedSortString = termConverter.convertSanitized(sort)
-        val sortString = termConverter.convert(sort)
-
-        if (sanitizedSortString.contains("$T$")) {
-          // Ensure that sanitizedSortString does not contain the key which we substitute with sortString,
-          // because otherwise, we can have $T$ -> ....$S$.... -> ....<sortString>...., which is not what we want.
-          var i = 0
-          while (sanitizedSortString.contains(s"$$T$i$$")) {
-            i += 1
-          }
-
-          preambleReader.emitParametricPreamble("/sortwrappers.smt2",
-            Map("$T$" -> s"$$T$i$$",
-                "$S$" -> sanitizedSortString,
-                s"$$T$i$$" -> sortString),
-            sink)
-        } else {
-          preambleReader.emitParametricPreamble("/sortwrappers.smt2",
-            Map("$S$" -> sanitizedSortString,
-                "$T$" -> sortString),
-            sink)
-        }
-
-      })
-    }
+    sink.emit(str)
   }
 
   private def setErrorScope(results: Seq[VerificationResult], scope: Member): Seq[VerificationResult] = {

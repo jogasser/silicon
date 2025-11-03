@@ -362,7 +362,7 @@ object producer extends ProductionRules {
                 quantifiedChunkSupporter.produceSingleLocation(
                   s2, predicate, formalArgs, Option.when(withExp)(predicate.formalArgs), tArgs, eArgsNew, snap, gain, gainExp, trigger, v2)(Q)
               } else {
-                val snap1 = snap.convert(sorts.Snap)
+                val snap1 = v2.decider.assumeSortWrapper(snap.convert(sorts.Snap))
                 val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, eArgsNew, snap1, None, gain, gainExp)
                 chunkSupporter.produce(s2, s2.h, ch, v2)((s3, h3, v3) => {
                   if (Verifier.config.enablePredicateTriggersOnInhale() && s3.functionRecorder == NoopFunctionRecorder

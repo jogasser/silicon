@@ -12,7 +12,7 @@ import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.{Map, Stack, state, toMap}
-import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SortBasedIdentifier}
+import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SimpleIdentifier, SortBasedIdentifier}
 import viper.silicon.verifier.Verifier
 import viper.silver.utility.Common.Rational
 
@@ -114,6 +114,24 @@ object SortDecl extends CondFlyweightFactory[Sort, SortDecl, SortDecl] {
 class FunctionDecl private[terms] (val func: Function) extends Decl with ConditionalFlyweight[Function, FunctionDecl] {
   val id: Identifier = func.id
   override val equalityDefiningMembers: Function = func
+}
+
+object FunctionDef extends CondFlyweightFactory[(Function, Seq[Var], Term), FunctionDef, FunctionDef] {
+  override def actualCreate(args: (Function, Stack[Var], Term)): FunctionDef = new FunctionDef(args._1, args._2, args._3)
+}
+
+class FunctionDef (val func: Function, val args: Seq[Var], val body: Term) extends Decl with ConditionalFlyweight[(Function, Seq[Var], Term), FunctionDef] {
+  val id: Identifier = func.id
+  override val equalityDefiningMembers: (Function, Seq[Var], Term) = (func, args, body)
+}
+
+class FunctionDefs (val funcDefs: Seq[FunctionDef]) extends Decl with ConditionalFlyweight[Seq[FunctionDef], FunctionDefs] {
+  val id: Identifier = SimpleIdentifier("")
+  override val equalityDefiningMembers: Seq[FunctionDef] = funcDefs
+}
+
+object FunctionDefs extends CondFlyweightFactory[Seq[FunctionDef], FunctionDefs, FunctionDefs] {
+  override def actualCreate(args: Seq[FunctionDef]): FunctionDefs = new FunctionDefs(args)
 }
 
 object FunctionDecl extends CondFlyweightFactory[Function, FunctionDecl, FunctionDecl] {
@@ -2160,6 +2178,13 @@ object Second extends CondFlyweightTermFactory[Term, Second] {
   override def actualCreate(args: Term): Second = new Second(args)
 }
 
+class IsSortWrapper(val s: SortWrapper) extends BooleanTerm with ConditionalFlyweight[SortWrapper, IsSortWrapper] {
+  override val equalityDefiningMembers: SortWrapper = s
+}
+object IsSortWrapper extends PreciseCondFlyweightFactory[SortWrapper, IsSortWrapper] {
+  override def actualCreate(args: SortWrapper): IsSortWrapper = new IsSortWrapper(args)
+
+}
 /* Quantified permissions */
 
 class Lookup(val field: String, val fvf: Term, val at: Term) extends Term with ConditionalFlyweight[(String, Term, Term), Lookup] {

@@ -8,21 +8,18 @@ package viper.silicon.supporters.functions
 
 import scala.annotation.unused
 import com.typesafe.scalalogging.LazyLogging
-import viper.silicon.state.FunctionPreconditionTransformer
+import viper.silicon.state.{Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
 import viper.silver.ast
-import viper.silver.ast.utility.Functions
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.FatalResult
 import viper.silicon.rules.{InverseFunctions, SnapshotMapDefinition, functionSupporter}
 import viper.silicon.state.terms._
 import viper.silicon.state.terms.predef._
-import viper.silicon.state.{Identifier, IdentifierFactory, SymbolConverter}
 import viper.silicon.supporters.PredicateData
 import viper.silicon.utils.ast.simplifyVariableName
 import viper.silicon.verifier.Verifier
 import viper.silicon.{Config, Map, toMap}
 import viper.silver.ast.LocalVarWithVersion
-import viper.silver.parser.PUnknown
 import viper.silver.reporter.Reporter
 
 /* TODO: Refactor FunctionData!
@@ -47,7 +44,7 @@ class FunctionData(val programFunction: ast.Function,
                    @unused reporter: Reporter)
     extends LazyLogging {
 
-  private[this] var phase = 0
+  var phase = 0
 
   /*
    * Properties computed from the constructor arguments
@@ -55,8 +52,6 @@ class FunctionData(val programFunction: ast.Function,
 
   val function: HeapDepFun = symbolConverter.toFunction(programFunction)
   val limitedFunction = functionSupporter.limitedVersion(function)
-  val statelessFunction = functionSupporter.statelessVersion(function)
-  val preconditionFunction = functionSupporter.preconditionVersion(function)
 
   val formalArgs: Map[ast.AbstractLocalVar, Var] = toMap(
     for (arg <- programFunction.formalArgs;
@@ -76,19 +71,6 @@ class FunctionData(val programFunction: ast.Function,
       Seq(Some(ast.LocalVar(`?s`.id.name, ast.InternalType)())) ++ formalArgs.keys.map(Some(_))
     else
       Seq.fill(1 + formalArgs.size)(None)
-
-  val functionApplication = App(function, `?s` +: formalArgs.values.toSeq)
-  val limitedFunctionApplication = App(limitedFunction, `?s` +: formalArgs.values.toSeq)
-  val triggerFunctionApplication = App(statelessFunction, formalArgs.values.toSeq)
-  val preconditionFunctionApplication = App(preconditionFunction, `?s` +: formalArgs.values.toSeq)
-
-  val limitedAxiom =
-    Forall(arguments,
-           BuiltinEquals(limitedFunctionApplication, functionApplication),
-           Trigger(functionApplication))
-
-  val triggerAxiom =
-    Forall(arguments, triggerFunctionApplication, Trigger(limitedFunctionApplication))
 
   /*
    * Data collected during phases 1 (well-definedness checking) and 2 (verification)
@@ -146,18 +128,16 @@ class FunctionData(val programFunction: ast.Function,
         case App(f: Function, _) => FunctionDecl(f)
         case other => sys.error(s"Unexpected SM $other of type ${other.getClass.getSimpleName}")
       })
-
-    phase += 1
   }
 
   private def generateNestedDefinitionalAxioms: InsertionOrderedSet[Term] = {
     val freshSymbols: Set[Identifier] = freshSymbolsAcrossAllPhases.map(_.id)
 
     val nested = (
-         freshFieldInvs.flatMap(_.definitionalAxioms)
-      ++ freshFvfsAndDomains.flatMap (fvfDef => fvfDef.domainDefinitions ++ fvfDef.valueDefinitions)
-      ++ freshConstrainedVars.map(_._2)
-      ++ freshConstraints)
+      freshFieldInvs.flatMap(_.definitionalAxioms)
+        ++ freshFvfsAndDomains.flatMap (fvfDef => fvfDef.domainDefinitions ++ fvfDef.valueDefinitions)
+        ++ freshConstrainedVars.map(_._2)
+        ++ freshConstraints)
 
     // Filter out nested definitions that contain free variables.
     // This should not happen, but currently can, due to bugs in the function axiomatisation code.
@@ -168,15 +148,15 @@ class FunctionData(val programFunction: ast.Function,
       val freeVars = term.freeVariables -- arguments
       val unknownVars = freeVars.filterNot(v => freshSymbols.contains(v.id))
 
-    //if (unknownVars.nonEmpty) {
-    //  val messageText = (
-    //      s"Found unexpected free variables $unknownVars "
-    //    + s"in term $term during axiomatisation of function "
-    //    + s"${programFunction.name}")
-    //
-    //  reporter report InternalWarningMessage(messageText)
-    //  logger warn messageText
-    //}
+      //if (unknownVars.nonEmpty) {
+      //  val messageText = (
+      //      s"Found unexpected free variables $unknownVars "
+      //    + s"in term $term during axiomatisation of function "
+      //    + s"${programFunction.name}")
+      //
+      //  reporter report InternalWarningMessage(messageText)
+      //  logger warn messageText
+      //}
 
       unknownVars.isEmpty
     })
@@ -186,120 +166,90 @@ class FunctionData(val programFunction: ast.Function,
    * Properties resulting from phase 1 (well-definedness checking)
    */
 
-  lazy val translatedPres: Seq[Term] = {
-    assert(1 <= phase && phase <= 2, s"Cannot translate precondition in phase $phase")
+  private lazy val translatedPosts = {
+    assert(phase == 1 || phase == 2, s"Postcondition axiom must be generated in phase 1 or 2, current phase is $phase")
+    expressionTranslator.translatePostcondition(program, programFunction.posts, this)
+  }
 
+  private lazy val translatedPres = {
+    assert(phase == 1 || phase == 2, s"Precondition axiom must be generated in phase 1 or 2, current phase is $phase")
     expressionTranslator.translatePrecondition(program, programFunction.pres, this)
   }
 
-  lazy val translatedPosts = {
-    assert(phase == 1, s"Postcondition axiom must be generated in phase 1, current phase is $phase")
-    if (programFunction.posts.nonEmpty) {
-      expressionTranslator.translatePostcondition(program, programFunction.posts, this)
-    } else {
-      Seq()
-    }
+  lazy val finalFunctionBody: Term = {
+    assert(phase == 3, s"Final function must be generated in phase 2, current phase is $phase")
+    val body = expressionTranslator.translate(program, programFunction, this).map(b => Equals(formalResult, b))
+    var combinedTerm = And(body.map(_ +: translatedPosts).getOrElse(translatedPosts))
+
+    if(translatedPres.nonEmpty)
+      combinedTerm = Implies(And(translatedPres), combinedTerm)
+
+    combinedTerm = And(generateNestedDefinitionalAxioms ++ List(combinedTerm))
+    transformAllFunctionCalls(combinedTerm, fun => functionSupporter.finalVersion(fun))
   }
 
-  lazy val postAxiom: Option[Term] = {
-    assert(phase == 1, s"Postcondition axiom must be generated in phase 1, current phase is $phase")
+  private def definitionalBody(phaseInfo: Map[Function, Int]): Term = {
+    assert(phase == 2, s"Definitional function must be generated in phase 2, current phase is $phase")
 
-    if (programFunction.posts.nonEmpty) {
-      val pre = preconditionFunctionApplication
-      val innermostBody = And(generateNestedDefinitionalAxioms ++ List(Implies(pre, And(translatedPosts))))
-      val bodyBindings: Map[Var, Term] = Map(formalResult -> limitedFunctionApplication)
-      val body = Let(toMap(bodyBindings), innermostBody)
-
-      Some(Forall(arguments, body, Trigger(limitedFunctionApplication)))
-    } else
-      None
-  }
-
-  /*
-   * Properties resulting from phase 2 (verification)
-   */
-
-  lazy val predicateTriggers: Map[ast.Predicate, App] = {
-    val recursiveCallsAndUnfoldings: Seq[(ast.FuncApp, Seq[ast.Unfolding])] =
-      Functions.recursiveCallsAndSurroundingUnfoldings(programFunction)
-
-    val outerUnfoldings: Seq[ast.Unfolding] =
-      recursiveCallsAndUnfoldings.flatMap(_._2.headOption)
-
-    // predicateAccesses initially contains all predicate instances unfolded by the function
-    var predicateAccesses: Seq[ast.PredicateAccess] =
-      if (recursiveCallsAndUnfoldings.isEmpty)
-        Vector.empty
-      else
-        outerUnfoldings map (_.acc.loc)
-
-    // // Could add predicate instances from precondition as well, but currently not done (also not in Carbon)
-    // predicateAccesses ++=
-    //   programFunction.pres.flatMap(_.shallowCollect { case predAcc: ast.PredicateAccess => predAcc })
-
-    // Only keep predicate instances whose arguments do not contain free variables
-    predicateAccesses = {
-      val functionArguments: Seq[ast.AbstractLocalVar] = programFunction.formalArgs.map(_.localVar)
-
-      predicateAccesses.filter(predAcc =>
-        predAcc.args.forall(arg => ast.utility.Expressions.freeVariablesExcluding(arg, functionArguments).isEmpty))
-    }
-
-    toMap(predicateAccesses.map(predAcc => {
-      val predicate = program.findPredicate(predAcc.predicateName)
-      val triggerFunction = predicateData(predicate).triggerFunction
-
-      /* TODO: Don't use translatePrecondition - refactor expressionTranslator */
-      val args = (
-           expressionTranslator.getOrFail(locToSnap, predAcc, Seq(), sorts.Snap, Option.when(Verifier.config.enableDebugging())(PUnknown()))
-        +: expressionTranslator.translatePrecondition(program, predAcc.args, this))
-
-      val fapp = App(triggerFunction, args)
-
-      predicate -> fapp
-    }))
-  }
-
-  lazy val optBody: Option[Term] = {
-    assert(phase == 2, s"Definitional axiom must be generated in phase 2, current phase is $phase")
-
-    expressionTranslator.translate(program, programFunction, this)
-  }
-
-  lazy val definitionalAxiom: Option[Term] = {
-    assert(phase == 2, s"Definitional axiom must be generated in phase 2, current phase is $phase")
-
-    optBody.map(translatedBody => {
-      val pre = preconditionFunctionApplication
-      val nestedDefinitionalAxioms = generateNestedDefinitionalAxioms
-      val body = And(nestedDefinitionalAxioms ++ List(Implies(pre, And(BuiltinEquals(functionApplication, translatedBody)))))
-      val funcAnn = programFunction.info.getUniqueInfo[ast.AnnotationInfo]
-      val actualPredicateTriggers = funcAnn match {
-        case Some(a) if a.values.contains("opaque") => Seq()
-        case _ => predicateTriggers.values.map(pt => Trigger(Seq(triggerFunctionApplication, pt)))
+    def transformFunction(fun: HeapDepFun) = {
+      phaseInfo(fun) match {
+        case 1 => functionSupporter.postconditionVersion(fun);
+        case 2 => functionSupporter.definitionalVersion(fun);
       }
-      val allTriggers = (
-           Seq(Trigger(functionApplication)) ++ actualPredicateTriggers)
+    }
 
-      Forall(arguments, body, allTriggers)})
+    val body = expressionTranslator.translate(program, programFunction, this).map(b => Equals(formalResult, b))
+    var combinedTerm = And(body.map(_ +: translatedPosts).getOrElse(translatedPosts))
+
+    if(translatedPres.nonEmpty)
+      combinedTerm = Implies(And(translatedPres), combinedTerm)
+
+    combinedTerm = And(generateNestedDefinitionalAxioms ++ List(combinedTerm))
+    transformAllFunctionCalls(combinedTerm, transformFunction)
   }
 
-  lazy val bodyPreconditionPropagationAxiom: Seq[Term] = {
-    val pre = preconditionFunctionApplication
-    val bodyPreconditions = if (programFunction.body.isDefined) optBody.map(translatedBody => {
-      val body = Implies(pre, FunctionPreconditionTransformer.transform(translatedBody, program))
-      Forall(arguments, body, Seq(Trigger(functionApplication)))
-    }) else None
-    bodyPreconditions.toSeq
+  private def postsBody(phaseInfo: Map[Function, Int]): Term = {
+    assert(phase == 1, s"Postcondition function must be generated in phase 1, current phase is $phase")
+
+    def transformFunction(fun: HeapDepFun) = {
+      phaseInfo(fun) match {
+        case 1 => functionSupporter.postconditionVersion(fun);
+        case 2 => functionSupporter.definitionalVersion(fun);
+      }
+    }
+    var combinedTerm = And(translatedPosts)
+
+    if(translatedPres.nonEmpty)
+      combinedTerm = Implies(And(translatedPres), combinedTerm)
+    transformAllFunctionCalls(combinedTerm, transformFunction)
   }
 
-  lazy val postPreconditionPropagationAxiom: Seq[Term] = {
-    val pre = preconditionFunctionApplication
-    val postPreconditions = if (programFunction.posts.nonEmpty) {
-      val bodyBindings: Map[Var, Term] = Map(formalResult -> limitedFunctionApplication)
-      val bodies = translatedPosts.map(tPost => Let(bodyBindings, Implies(pre, FunctionPreconditionTransformer.transform(tPost, program))))
-      bodies.map(b => Forall(arguments, b, Seq(Trigger(limitedFunctionApplication))))
-    } else Seq()
-    postPreconditions
+  def transformAllFunctionCalls(term: Term, transformFun: HeapDepFun => HeapDepFun): Term = {
+    var replacedTerms = term.transform(
+      { case app: App if app.applicable.isInstanceOf[HeapDepFun] => app.copy(applicable = functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]))}
+    )(_ => true)
+    val limitedApps = replacedTerms.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app}).toSet
+
+    limitedApps.foreach(app => {
+      val origFun = app.applicable.asInstanceOf[HeapDepFun]
+      val newApp = App(transformFun(origFun.copy(id = origFun.id match {
+        case SuffixedIdentifier(prefix, _, _) => prefix
+        case _ => origFun.id
+      })), app.args)
+      replacedTerms = And(replacedTerms, newApp)
+    })
+    replacedTerms.replace(formalResult, App(limitedFunction, arguments))
+  }
+
+  def postsVersionDef(phaseInfo: Map[Function, Int]): FunctionDef = {
+    FunctionDef(functionSupporter.postconditionVersion(function), arguments, postsBody(phaseInfo))
+  }
+
+  def defVersionDef(phaseInfo: Map[Function, Int]): FunctionDef = {
+    FunctionDef(functionSupporter.definitionalVersion(function), arguments, definitionalBody(phaseInfo))
+  }
+
+  def finalVersionDef(): FunctionDef = {
+    FunctionDef(functionSupporter.finalVersion(function), arguments, finalFunctionBody)
   }
 }

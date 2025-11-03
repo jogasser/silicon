@@ -73,13 +73,14 @@ object predicateSupporter extends PredicateSupportRules {
     consume(s1, body, true, pve, v)((s1a, snap, v1) => {
       if (!Verifier.config.disableFunctionUnfoldTrigger()) {
         val predTrigger = App(s1a.predicateData(predicate).triggerFunction,
-          snap.get.convert(terms.sorts.Snap) +: tArgs)
+          v.decider.assumeSortWrapper(snap.get.convert(terms.sorts.Snap)) +: tArgs)
         val eArgsString = eArgs.mkString(", ")
         v1.decider.assume(predTrigger, Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($eArgsString))")))
       }
       val s2 = s1a.setConstrainable(constrainableWildcards, false)
       if (s2.qpPredicates.contains(predicate)) {
-        val predSnap = snap.get.convert(s2.predicateSnapMap(predicate))
+        val predSnap = v.decider.assumeSortWrapper(snap.get.convert(s2.predicateSnapMap(predicate)))
+
         val formalArgs = s2.predicateFormalVarMap(predicate)
         val (sm, smValueDef) =
           quantifiedChunkSupporter.singletonSnapshotMap(s2, predicate, tArgs, predSnap, v1)
@@ -98,6 +99,7 @@ object predicateSupporter extends PredicateSupportRules {
             quantifiedChunkSupporter.summarisingSnapshotMap(
               s2, predicate, s2.predicateFormalVarMap(predicate), relevantChunks, v1)
           val eArgsString = eArgs.mkString(", ")
+          v1.decider.assumeSortWrapper(toSnapTree(tArgs))
           v1.decider.assume(PredicateTrigger(predicate.name, smDef1.sm, tArgs),
             Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($eArgsString))")))
           smCache1
@@ -113,7 +115,7 @@ object predicateSupporter extends PredicateSupportRules {
                          functionRecorder = s2.functionRecorder.recordFvfAndDomain(smDef))
         Q(s3, v1)
       } else {
-        val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, eArgs, snap.get.convert(sorts.Snap), None, tPerm, ePerm)
+        val ch = BasicChunk(PredicateID, BasicChunkIdentifier(predicate.name), tArgs, eArgs, v1.decider.assumeSortWrapper(snap.get.convert(sorts.Snap)), None, tPerm, ePerm)
         val s3 = s2.copy(g = s.g,
                          smDomainNeeded = s.smDomainNeeded,
                          permissionScalingFactor = s.permissionScalingFactor,
@@ -168,7 +170,7 @@ object predicateSupporter extends PredicateSupportRules {
           if (!Verifier.config.disableFunctionUnfoldTrigger()) {
             val predicateTrigger =
               App(s4.predicateData(predicate).triggerFunction,
-                snap.get.convert(terms.sorts.Snap) +: tArgs)
+                v2.decider.assumeSortWrapper(snap.get.convert(terms.sorts.Snap)) +: tArgs)
             val eargs = eArgs.mkString(", ")
             v2.decider.assume(predicateTrigger, Option.when(withExp)(DebugExp.createInstance(s"PredicateTrigger(${predicate.name}($eargs))")))
           }
