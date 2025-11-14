@@ -416,7 +416,7 @@ abstract class ProverStdIO(uniqueId: String,
   }
 
   def assumeSeqBoundRec(term: Term, sort: sorts.Seq): Unit = {
-    val bound = 10
+    val bound = 7
 
     assume(Less(SeqLength(term), IntLiteral(bound)))
     sort.elementsSort match {
@@ -490,7 +490,7 @@ abstract class ProverStdIO(uniqueId: String,
       result = readLineFromInput()
       if (result.toLowerCase != "success") comment(result)
 
-      val warning = result.startsWith("WARNING")
+      val warning = result.startsWith("WARNING") || result.startsWith("Could not evaluate")
       if (warning) {
         val msg = s"Prover warning: $result"
         reporter report InternalWarningMessage(msg)

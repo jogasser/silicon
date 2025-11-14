@@ -114,7 +114,7 @@ object magicWandSupporter extends SymbolicExecutionRules {
   def createMagicWandSnapshot(abstractLhs: Var, rhsSnapshot: Term, v: Verifier, oldLookupFun: Function): (MagicWandSnapshot, Function) = {
     val mwsf = v.decider.fresh("mwsf", sorts.MagicWandSnapFunction, Option.when(withExp)(PUnknown()))
     val magicWandSnapshot = MagicWandSnapshot(mwsf)
-    val lookupFun = SMTFun(v.decider.prover.freshIdentifier("mwsf_lookup"), Seq(sorts.MagicWandSnapFunction, sorts.Snap), sorts.Snap);
+    val lookupFun = SMTFun(v.decider.prover.freshIdentifier("mwsf_lookup"), Seq(sorts.MagicWandSnapFunction, sorts.Snap), sorts.Snap)
     val args = Seq(terms.Var(Identifier("mwsf"), sorts.MagicWandSnapFunction, false), abstractLhs)
     val funDef: FunctionDef = FunctionDef(lookupFun, args, Ite(Equals(args.head, mwsf), rhsSnapshot, App(oldLookupFun, args)))
     v.decider.prover.declare(funDef);
@@ -315,6 +315,7 @@ object magicWandSupporter extends SymbolicExecutionRules {
         val formalVars = bodyVars.indices.toList.map(i => Var(Identifier(s"x$i"), v.symbolConverter.toSort(bodyVars(i).typ), false))
         val formalVarExps = Option.when(withExp)(bodyVars.indices.toList.map(i => ast.LocalVarDecl(s"x$i", bodyVars(i).typ)()))
 
+        // TODO quantified permissions
         evals(s4.copy(mwLookupFun = lookupFun), bodyVars, _ => pve, v3)((s5, args, _, v4) => {
           val snapshotTerm = Combine(freshSnapRoot, snapRhs)
           val (sm, smValueDef) = quantifiedChunkSupporter.singletonSnapshotMap(s5, wand, args, snapshotTerm, v4)
@@ -330,14 +331,9 @@ object magicWandSupporter extends SymbolicExecutionRules {
       } else {
         this.createChunk(s4.copy(mwLookupFun = lookupFun), wand, wandSnapshot, pve, v3)((s5, ch, v4) => {
           val conservedPcs = s5.conservedPcs.head :+ v4.decider.pcs.after(preMark).definitionsOnly
-          // TODO jga: maybe clean up since we do not quantify anymore?
           // Partition path conditions into a set which include the freshSnapRoot and those which do not
-          val (pcsWithFreshSnapRoot, pcsWithoutFreshSnapRoot) = conservedPcs.flatMap(pcs => pcs.conditionalized).partition(_.contains(freshSnapRoot))
-          val pcsWithoutExp = Option.when(withExp)(filterDebugExpsWithoutSnapshot(conservedPcs.flatMap(pcs => pcs.conditionalizedExp), freshSnapRoot))
-          // For all path conditions which include the freshSnapRoot, add those as part of the definition of the MWSF in the same forall quantifier
-
-          appendToResults(s5, ch, v4.decider.pcs.after(preMark), (pcsWithoutFreshSnapRoot,
-            Option.when(withExp)( pcsWithoutExp.get)) , v4)
+          val pcsWithoutFreshSnapRoot = conservedPcs.flatMap(pcs => pcs.conditionalized)
+          appendToResults(s5, ch, v4.decider.pcs.after(preMark), (pcsWithoutFreshSnapRoot, None) , v4)
           Success()
         })
       }
