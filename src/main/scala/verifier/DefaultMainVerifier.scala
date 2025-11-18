@@ -196,10 +196,12 @@ class DefaultMainVerifier(config: Config,
       program = new ConditionalPermissionRewriter().rewrite(program, !config.respectFunctionPrePermAmounts()).asInstanceOf[ast.Program]
     }
 
-    program = program.copy(functions = program.functions ++ Seq(SequencesContributor.rangeFun))(program.pos, program.info, program.errT)
-    program = program.transform({
-      case ast.RangeSeq(low, high) => ast.FuncApp(SequencesContributor.rangeFun, Seq(low, high))()
-    })
+    if(program.exists(n => n.isInstanceOf[ast.RangeSeq])) {
+      program = program.copy(functions = program.functions ++ Seq(SequencesContributor.rangeFun))(program.pos, program.info, program.errT)
+      program = program.transform({
+        case ast.RangeSeq(low, high) => ast.FuncApp(SequencesContributor.rangeFun, Seq(low, high))()
+      })
+    }
 
     if (config.printTranslatedProgram()) {
       println(program)
