@@ -590,7 +590,7 @@ object consumer extends ConsumptionRules {
     )
   }
 
-  // TODO jga: Probably illegal in Silicon, however since we don't care about trigger
+  // TODO jga: Probably illegal in Silicon, however since we don't care about triggers it should be fine for us
   private def captureNestedQuantifiers(t: Term, q: Quantifier): (Seq[Var], Term) = {
     t match {
       case quant: Quantification if quant.q == q =>
