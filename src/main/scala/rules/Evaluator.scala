@@ -861,8 +861,7 @@ object evaluator extends EvaluationRules {
                 val exp = ast.Forall(eQuant.variables, eTriggers, body)(sourceQuant.pos, sourceQuant.info, sourceQuant.errT)
                 DebugExp.createInstance(exp, expNew)
               })
-
-              val transformed = FunctionCallTransformer.transformBody(tBody, s1.program, FunctionCallTransformer.getTransformFunction(s1))
+              val transformed = FunctionCallTransformer.transform(tBody, s1.program, FunctionCallTransformer.getTransformFunction(s1))
               v1.decider.assume(Quantification(Forall, tVars, transformed, tTriggers, name, quantWeight), debugExp)
             }
 

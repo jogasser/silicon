@@ -128,7 +128,7 @@ object havocSupporter extends SymbolicExecutionRules {
         val notInjectiveReason = QuasihavocallNotInjective(havocall)
 
         val injectivityDebugExp = Option.when(withExp)(DebugExp.createInstance("QP receiver injectivity check is well-defined", true))
-        v.decider.assume(FunctionCallTransformer.transformBody(receiverInjectivityCheck, s.program, FunctionCallTransformer.getTransformFunction(s)), injectivityDebugExp)
+        v.decider.assume(FunctionCallTransformer.transform(receiverInjectivityCheck, s.program, FunctionCallTransformer.getTransformFunction(s)), injectivityDebugExp)
         v.decider.assert(receiverInjectivityCheck) {
           case false => createFailure(pve dueTo notInjectiveReason, v, s1, receiverInjectivityCheck, "QP receiver injective")
           case true =>

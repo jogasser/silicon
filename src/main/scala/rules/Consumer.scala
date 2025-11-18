@@ -590,6 +590,15 @@ object consumer extends ConsumptionRules {
     )
   }
 
+  // TODO jga: Probably illegal in Silicon, however since we don't care about trigger
+  private def captureNestedQuantifiers(t: Term, q: Quantifier): (Seq[Var], Term) = {
+    t match {
+      case quant: Quantification if quant.q == q =>
+        val (nestedVars, nestedBody) = captureNestedQuantifiers(quant.body, q)
+        (quant.vars ++ nestedVars, nestedBody)
+      case _ => (Seq(), t)
+    }
+  }
 
   private def evalAndAssert(s: State, e: ast.Exp, returnSnap: Boolean, pve: PartialVerificationError, v: Verifier)
                            (Q: (State, Option[Term], Verifier) => VerificationResult)
@@ -612,11 +621,24 @@ object consumer extends ConsumptionRules {
     executionFlowController.tryOrFail0(s1, v)((s2, v1, QS) => {
       eval(s2, e, pve, v1)((s3, t, eNew, v2) => {
         val termToAssert = t match {
-          case Quantification(q, vars, body, trgs, name, isGlob, weight) =>
-            val transformed = FunctionCallTransformer.transformBody(body, s3.program, FunctionCallTransformer.getTransformFunction(s3))
-            v2.decider.assume(Quantification(q, vars, transformed, trgs, name+"_precondition", isGlob, weight), Option.when(withExp)(e), eNew)
-            Quantification(q, vars, Implies(transformed, body), trgs, name, isGlob, weight)
-          case _ => t
+          case Quantification(Forall, vars, body, trgs, name, isGlob, weight) =>
+            val (nestedVars, nestedBody) = captureNestedQuantifiers(body, Forall)
+            val transformed = FunctionCallTransformer.transform(nestedBody, s3.program, FunctionCallTransformer.getTransformFunction(s3))
+            Quantification(Forall, vars ++ nestedVars, Implies(transformed, nestedBody), trgs, name, isGlob, weight)
+          case Quantification(Exists, vars, body, trgs, name, isGlob, weight) =>
+            val (nestedVars, nestedBody) = captureNestedQuantifiers(body, Exists)
+            val transformed = FunctionCallTransformer.transform(nestedBody, s3.program, FunctionCallTransformer.getTransformFunction(s3))
+            Quantification(Exists, vars ++ nestedVars, Implies(transformed, nestedBody), trgs, name, isGlob, weight)
+          case _ =>
+            val quant = t.find(q => q.isInstanceOf[Quantification])
+
+            if(quant.isDefined){
+              val transformed = FunctionCallTransformer.transform(t, s3.program, FunctionCallTransformer.getTransformFunction(s3))
+              v2.decider.assume(transformed, Option.when(withExp)(e), eNew)
+              t
+            } else {
+              t
+            }
         }
         v2.decider.assert(termToAssert) {
           case true =>
