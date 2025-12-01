@@ -13,18 +13,7 @@
 (set-option :incremental true) ; required for push and pop
 (set-option :condense-function-values false)
 (set-option :strict-parsing false)
-(set-option :finite-model-find true)
-(set-option :preregister-mode lazy); analyze in Evaluation
-(set-option :e-matching true); analyze in Evaluation
-(set-option :mbqi true)
-(set-option :cegqi true)
-(set-option :cegqi-nested-qe true)
-(set-option :inst-when last-call)
-(set-option :fmf-fun-rlv true); analyze in Evaluation
-(set-option :fmf-mbqi fmc); analyze in Evaluation
-(set-option :fmf-bound true)
-(set-option :seq-array eager) ; analyze in Evaluation
-(set-option :dt-nested-rec true) ; analyze in Evaluation
+(set-option :dt-nested-rec true)
 (set-option :produce-models true) ; enabled to support proverStdIO. retrieveAndSaveModel
 
 ; Translated from z3config

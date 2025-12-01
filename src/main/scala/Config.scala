@@ -358,7 +358,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
 
   private val rawProverEnableResourceBounds: ScallopOption[Boolean] = opt[Boolean]("proverEnableResourceBounds",
     descr = "Use prover's resource bounds instead of timeouts",
-    default = Some(false),
+    default = Some(true),
     noshort = true
   )
 
@@ -378,7 +378,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
 
   private val rawProverResourcesPerMillisecond: ScallopOption[Int] = opt[Int]("proverResourcesPerMillisecond",
     descr = "Prover resources per milliseconds. Is used to convert timeouts to resource bounds.",
-    default = Some(60000),
+    default = Some(150),
     noshort = true,
   )
 
@@ -808,6 +808,51 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
     default = Some(Cvc5ProverStdIO.name),
     noshort = true
   )
+
+  val cvc5EMatching: ScallopOption[String] = opt[String]("cvc5EMatching",
+    descr = "CVC5 e-matching option (default: true)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5FmfFunRlv: ScallopOption[String] = opt[String]("cvc5FmfFunRlv",
+    descr = "CVC5 fmf-fun-rlv option (default: true)",
+    default = Some("false"),
+    noshort = true
+  )
+
+
+  val cvc5fmf: ScallopOption[String] = opt[String]("cvc5FiniteModelFind",
+    descr = "CVC5 fmf-mbqi option (default: fmc)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5cbqi: ScallopOption[String] = opt[String]("cvc5Cbqi",
+    descr = "CVC5 fmf-mbqi option (default: fmc)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5cegqi: ScallopOption[String] = opt[String]("cvc5Cegqi",
+    descr = "CVC5 fmf-mbqi option (default: fmc)",
+    default = Some("false"),
+    noshort = true
+  )
+
+
+  val cvc5FmfMbqi: ScallopOption[String] = opt[String]("cvc5FmfMbqi",
+    descr = "CVC5 fmf-mbqi option (default: none)",
+    default = Some("none"),
+    noshort = true
+  )
+
+  val cvc5SeqArray: ScallopOption[String] = opt[String]("cvc5SeqArray",
+    descr = "CVC5 seq-array option (default: eager)",
+    default = Some("none"),
+    noshort = true
+  )
+
 
   val enableDebugging: ScallopOption[Boolean] = opt[Boolean]("enableDebugging",
     descr = "Enable debugging mode",
