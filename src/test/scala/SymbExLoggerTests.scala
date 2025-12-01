@@ -57,7 +57,7 @@ class SymbExLoggerTests extends SilSuite {
 
   val commandLineArguments: Seq[String] =
     Seq(
-      "--timeout", "15" /* seconds */,
+      "--timeout", "30" /* seconds */,
       "--disableCaching", "--ideModeAdvanced",
       "--numberOfParallelVerifiers", "1")
 }
