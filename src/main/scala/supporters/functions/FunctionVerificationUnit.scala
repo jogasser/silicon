@@ -12,7 +12,7 @@ import viper.silver.ast
 import viper.silver.ast.utility.Functions
 import viper.silver.components.StatefulComponent
 import viper.silver.verifier.errors.{ContractNotWellformed, FunctionNotWellformed, PostconditionViolated}
-import viper.silicon.{Map, Stack, toMap}
+import viper.silicon.{MMap, Map, Stack, toMap}
 import viper.silicon.interfaces.decider.ProverLike
 import viper.silicon.interfaces._
 import viper.silicon.state._
@@ -116,7 +116,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     private def generateFunctionSymbolsAfterAnalysis: Iterable[Either[String, Decl]] = (
          Seq(Left("Declaring symbols related to program functions (from program analysis)"))
       ++ functionData.values.flatMap(data =>
-            Seq(data.limitedFunction).map(FunctionDecl)
+            Seq(data.function).map(FunctionDecl)
          ).map(Right(_))
     )
 
@@ -325,8 +325,32 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
 
     def defineFunctionsAfterVerification(sink: ProverLike = decider.prover): Unit = {
       functionData.foreach(data => { data._2.phase = 3 } )
-      val decls = functionData.values.map(data => data.finalVersionDef())
-      sink.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
+
+      def collectNestedCalls(b: ast.Exp, height: Int): Seq[Boolean] = {
+        b.deepCollect({ case ast.FuncApp(f, _) => functionData(program.findFunction(f)).height == height })
+      }
+
+      def callsFunOfSameHeight(data: FunctionData) = {
+        val bodyCallsFunOfSameHeight = data.programFunction.body
+          .map(b => collectNestedCalls(b, data.height))
+          .getOrElse(Seq(false)).reduceOption((b1, b2) => b1 || b2).getOrElse(false)
+        val postConditionCallsFunOfSameHeight = data.programFunction.posts
+          .flatMap(b => collectNestedCalls(b, data.height))
+          .reduceOption((b1, b2) => b1 || b2).getOrElse(false)
+        val preConditionCallsFunOfSameHeight = data.programFunction.pres
+          .flatMap(b => collectNestedCalls(b, data.height))
+          .reduceOption((b1, b2) => b1 || b2).getOrElse(false)
+
+        bodyCallsFunOfSameHeight || postConditionCallsFunOfSameHeight || preConditionCallsFunOfSameHeight
+      }
+
+      functionData
+        .groupBy(data => data._2.height).toSeq
+        .sortBy(d => -d._1)
+        .foreach(group => {
+          group._2.filter(data => !callsFunOfSameHeight(data._2)).foreach(data => sink.declare(data._2.finalVersionDef()))
+          sink.declare(FunctionDefs(group._2.filter(data => callsFunOfSameHeight(data._2)).map(data => data._2.finalVersionDef()).toSeq))
+        })
     }
 
     val axiomsAfterVerification: Iterable[Term] = emittedFunctionAxioms

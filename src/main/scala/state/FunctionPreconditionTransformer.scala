@@ -1,6 +1,5 @@
 package viper.silicon.state
 
-import viper.silicon.rules.functionSupporter
 import viper.silicon.state.terms.{And, App, Forall, HeapDepFun, Implies, Ite, Let, Literal, Not, Or, Quantification, Term, True}
 import viper.silver.ast
 
@@ -40,8 +39,7 @@ object FunctionPreconditionTransformer {
           Quantification(Forall, vars, tBody, triggers, name, isGlobal, weight)
         }
       case App(hdf@HeapDepFun(_, _, _), args)  =>
-        // TODO jga This will need some work for quantified permissions
-          And(args.map(transform(_, p)) :+ App(functionSupporter.limitedVersion(hdf), args))
+          And(args.map(transform(_, p)) :+ App(hdf, args))
       case other => And(other.subterms.map(transform(_, p)))
     }
     res

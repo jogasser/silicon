@@ -10,17 +10,6 @@ import viper.silicon.state._
 import viper.silicon.state.terms._
 
 object functionSupporter {
-  def initialVersion(function: HeapDepFun): HeapDepFun = {
-    function.id match {
-      case SuffixedIdentifier(id, _, _) => HeapDepFun(id, function.argSorts, function.resultSort)
-      case _ => function
-    }
-  }
-
-  def limitedVersion(function: HeapDepFun): HeapDepFun = {
-    val id = function.id.withSuffix("%", "limited")
-    HeapDepFun(id, function.argSorts, function.resultSort)
-  }
 
   def postconditionVersion(function: HeapDepFun): HeapDepFun = {
     val id = function.id.withSuffix("%", "posts")

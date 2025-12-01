@@ -969,7 +969,7 @@ object evaluator extends EvaluationRules {
               }
 
               val fun = v3.symbolConverter.toFunction(func);
-              val res = getFApp(functionSupporter.limitedVersion(fun), snap1 :: tArgs);
+              val res = getFApp(fun, snap1 :: tArgs);
               if(s3.functionData(func).phase > 0) {
                 val funToCall = s3.functionData(func).phase match {
                   case 1 => functionSupporter.postconditionVersion(fun)
@@ -1635,7 +1635,7 @@ object evaluator extends EvaluationRules {
           *
           */
         // TODO jga investigate for quantifier encoding
-        app.copy(applicable = if (s.currentMember.get.isInstanceOf[ast.Function]) functionSupporter.limitedVersion(fun) else fun)
+        app.copy(applicable = if (s.currentMember.get.isInstanceOf[ast.Function]) fun else fun)
       case other =>
         other
     }

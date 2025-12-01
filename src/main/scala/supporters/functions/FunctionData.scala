@@ -51,7 +51,6 @@ class FunctionData(val programFunction: ast.Function,
    */
 
   val function: HeapDepFun = symbolConverter.toFunction(programFunction)
-  val limitedFunction = functionSupporter.limitedVersion(function)
 
   val formalArgs: Map[ast.AbstractLocalVar, Var] = toMap(
     for (arg <- programFunction.formalArgs;
@@ -192,7 +191,7 @@ class FunctionData(val programFunction: ast.Function,
     assert(phase == 2, s"Definitional function must be generated in phase 2, current phase is $phase")
 
     def transformFunction(fun: HeapDepFun) = {
-      phaseInfo(functionSupporter.initialVersion(fun)) match {
+      phaseInfo(fun) match {
         case 1 => functionSupporter.postconditionVersion(fun);
         case 2 => functionSupporter.definitionalVersion(fun);
       }
@@ -212,7 +211,7 @@ class FunctionData(val programFunction: ast.Function,
     assert(phase == 1, s"Postcondition function must be generated in phase 1, current phase is $phase")
 
     def transformFunction(fun: HeapDepFun) = {
-      phaseInfo(functionSupporter.initialVersion(fun)) match {
+      phaseInfo(fun) match {
         case 1 => functionSupporter.postconditionVersion(fun);
         case 2 => functionSupporter.definitionalVersion(fun);
       }
@@ -226,7 +225,7 @@ class FunctionData(val programFunction: ast.Function,
 
   def transformAllFunctionCalls(term: Term, transformFun: HeapDepFun => HeapDepFun): Term = {
     val replacedTerms = FunctionCallTransformer.transformBody(term, program, transformFun)
-    replacedTerms.replace(formalResult, App(limitedFunction, arguments))
+    replacedTerms.replace(formalResult, App(function, arguments))
   }
 
   def postsVersionDef(phaseInfo: Map[Function, Int]): FunctionDef = {
