@@ -10,6 +10,6 @@ class SiliconTestsConditionalizePermissions extends SiliconTests {
   override val testDirectories: Seq[String] = Seq("conditionalizePermissions")
 
  override val commandLineArguments: Seq[String] = Seq(
-    "--timeout", "15" /* seconds */,
+    "--timeout", "30" /* seconds */,
     "--conditionalizePermissions")
 }

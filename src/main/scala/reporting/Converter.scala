@@ -687,7 +687,7 @@ object Converter {
     val entries = model.entries
     val keys = entries.keys
     val modelFuncname = try {
-      (keys.filter(_.contains(fname+"%limited")) ++ keys.filter(_ == fname) ++ keys.filter(_ == kek)).head
+      (keys.filter(_.contains(fname)) ++ keys.filter(_ == fname) ++ keys.filter(_ == kek)).head
     } catch {
       case _: Throwable => return errorfunc(s"$fname model function not found")
     }

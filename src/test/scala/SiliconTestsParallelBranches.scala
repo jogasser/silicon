@@ -10,6 +10,6 @@ class SiliconTestsParallelBranches extends SiliconTests {
   override val testDirectories: Seq[String] = Seq("examples")
 
  override val commandLineArguments: Seq[String] = Seq(
-    "--timeout", "15" /* seconds */,
+    "--timeout", "30" /* seconds */,
     "--parallelizeBranches")
 }

@@ -103,7 +103,7 @@ class TermToSMTLib2Converter
       val argDocs = (args map (v => parens(text(render(v.id)) <+> render(v.sort)))).to(collection.immutable.Seq)
       val bodyDoc = render(body)
       val bodySortDoc = render(body.sort)
-      parens(text("define-fun-rec") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
+      parens(text("define-fun") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
     case FunctionDefs(funcs) =>
       val funDefs = funcs map (f => {
         val args = (f.args map (v => parens(text(render(v.id)) <+> render(v.sort)))).to(collection.immutable.Seq)

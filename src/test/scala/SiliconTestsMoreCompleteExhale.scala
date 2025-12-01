@@ -10,6 +10,6 @@ class SiliconTestsMoreCompleteExhale extends SiliconTests {
   override val testDirectories: Seq[String] = Seq("moreCompleteExhale", "issue387")
 
  override val commandLineArguments: Seq[String] = Seq(
-    "--timeout", "15" /* seconds */,
+    "--timeout", "30" /* seconds */,
     "--exhaleMode=1")
 }

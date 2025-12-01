@@ -247,6 +247,11 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
     default = Some(0),
     noshort = true
   )
+  val sequenceBounds: ScallopOption[Int] = opt[Int]("sequenceBounds",
+    descr = (  "Adds a bound for the length of all sequences. (default: 0, i.e. no bounds). "),
+    default = Some(0),
+    noshort = true
+  )
 
   // DEPRECATED and replaced by proverSaturationTimeout
   // but continues to work for now for backwards compatibility.

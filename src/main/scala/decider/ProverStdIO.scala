@@ -405,7 +405,7 @@ abstract class ProverStdIO(uniqueId: String,
 
     emit(termConverter.convert(decl))
 
-    if(argSorts.isEmpty) {
+    if(argSorts.isEmpty && Verifier.config.sequenceBounds.getOrElse(0) > 0) {
       resultSort match {
         case s: sorts.Seq => assumeSeqBoundRec(App(fun, Seq()), s)
         case _ =>
@@ -416,7 +416,7 @@ abstract class ProverStdIO(uniqueId: String,
   }
 
   def assumeSeqBoundRec(term: Term, sort: sorts.Seq): Unit = {
-    val bound = 7
+    val bound = Verifier.config.sequenceBounds.getOrElse(0)
 
     assume(Less(SeqLength(term), IntLiteral(bound)))
     sort.elementsSort match {
