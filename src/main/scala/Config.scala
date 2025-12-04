@@ -363,7 +363,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
 
   private val rawProverEnableResourceBounds: ScallopOption[Boolean] = opt[Boolean]("proverEnableResourceBounds",
     descr = "Use prover's resource bounds instead of timeouts",
-    default = Some(true),
+    default = Some(false),
     noshort = true
   )
 
@@ -826,35 +826,27 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
     noshort = true
   )
 
-
   val cvc5fmf: ScallopOption[String] = opt[String]("cvc5FiniteModelFind",
-    descr = "CVC5 fmf-mbqi option (default: fmc)",
+    descr = "CVC5 finite model find option (default: fmc)",
     default = Some("false"),
     noshort = true
   )
 
   val cvc5cbqi: ScallopOption[String] = opt[String]("cvc5Cbqi",
-    descr = "CVC5 fmf-mbqi option (default: fmc)",
+    descr = "CVC5 cbqi option (default: false)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5Mbqi: ScallopOption[String] = opt[String]("cvc5Mbqi",
+    descr = "CVC5 mbqi option (default: false)",
     default = Some("false"),
     noshort = true
   )
 
   val cvc5cegqi: ScallopOption[String] = opt[String]("cvc5Cegqi",
-    descr = "CVC5 fmf-mbqi option (default: fmc)",
+    descr = "CVC5 cegqi option (default: false)",
     default = Some("false"),
-    noshort = true
-  )
-
-
-  val cvc5FmfMbqi: ScallopOption[String] = opt[String]("cvc5FmfMbqi",
-    descr = "CVC5 fmf-mbqi option (default: none)",
-    default = Some("none"),
-    noshort = true
-  )
-
-  val cvc5SeqArray: ScallopOption[String] = opt[String]("cvc5SeqArray",
-    descr = "CVC5 seq-array option (default: eager)",
-    default = Some("none"),
     noshort = true
   )
 

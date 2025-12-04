@@ -14,6 +14,8 @@
 (set-option :condense-function-values false)
 (set-option :strict-parsing false)
 (set-option :dt-nested-rec true)
+(set-option :sub-cbqi true)
+(set-option :inst-max-rounds 20)
 (set-option :produce-models true) ; enabled to support proverStdIO. retrieveAndSaveModel
 
 ; Translated from z3config

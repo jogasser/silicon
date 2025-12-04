@@ -68,8 +68,7 @@ class Cvc5ProverStdIO(uniqueId: String,
       s"(set-option :cegqi ${config.cvc5cegqi()})",
       s"(set-option :e-matching ${config.cvc5EMatching()})",
       s"(set-option :fmf-fun-rlv ${config.cvc5FmfFunRlv()})",
-      s"(set-option :fmf-mbqi ${config.cvc5FmfMbqi()})",
-      s"(set-option :seq-array ${config.cvc5SeqArray()})",
+      s"(set-option :mbqi ${config.cvc5Mbqi()})",
     )
     
     emit(configurableSettings)
