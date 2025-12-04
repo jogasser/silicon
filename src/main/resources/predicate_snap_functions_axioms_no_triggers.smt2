@@ -13,10 +13,10 @@
 (assert (forall ((vs $PSF<$S$>) (ws $PSF<$S$>)) (!
     (=>
       (and
-        (Set_equal ($PSF.domain_$PRD$ vs) ($PSF.domain_$PRD$ ws))
+        (= ($PSF.domain_$PRD$ vs) ($PSF.domain_$PRD$ ws))
         (forall ((x $Snap)) (!
           (=>
-            (Set_in x ($PSF.domain_$FRD$ vs))
+            (set.member x ($PSF.domain_$FRD$ vs))
             (= ($PSF.lookup_$PRD$ vs x) ($PSF.lookup_$PRD$ ws x)))
           :qid |qp.$PSF<$S$>-eq-inner|
           )))

@@ -11,6 +11,7 @@ import scala.annotation.tailrec
 import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
+import viper.silicon.state.terms.sorts.Bool
 import viper.silicon.{Map, Stack, state, toMap}
 import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SimpleIdentifier, SortBasedIdentifier}
 import viper.silicon.verifier.Verifier
@@ -39,6 +40,10 @@ object sorts {
   object Ref  extends Sort { val id = Identifier("Ref");  override lazy val toString = id.toString }
   object Perm extends Sort { val id = Identifier("Perm"); override lazy val toString = id.toString }
   object Unit extends Sort { val id = Identifier("()");   override lazy val toString = id.toString }
+
+  case class AdtType(id: Identifier, typeInstantiations: collection.Seq[Sort]) extends Sort {
+    override lazy val toString = id.toString
+  }
 
   case class Seq(elementsSort: Sort) extends Sort {
     val id = Identifier(s"Seq[$elementsSort]")
@@ -136,6 +141,57 @@ object FunctionDefs extends CondFlyweightFactory[Seq[FunctionDef], FunctionDefs,
 
 object FunctionDecl extends CondFlyweightFactory[Function, FunctionDecl, FunctionDecl] {
   override def actualCreate(args: Function): FunctionDecl = new FunctionDecl(args)
+}
+
+class AdtDecl(val id: Identifier, val typeVars: Seq[String], val constructors: Seq[AdtConstructorDecl]) extends Decl with ConditionalFlyweight[(Identifier, Seq[String], Seq[AdtConstructorDecl]), AdtDecl] {
+  override val equalityDefiningMembers: (Identifier, Seq[String], Seq[AdtConstructorDecl]) = (id, typeVars, constructors)
+}
+
+object AdtDecl extends CondFlyweightFactory[(Identifier, Seq[String], Seq[AdtConstructorDecl]), AdtDecl, AdtDecl] {
+  override def actualCreate(args: (Identifier, Seq[String], Seq[AdtConstructorDecl])): AdtDecl = new AdtDecl(args._1, args._2, args._3)
+}
+
+class AdtDecls(val decls: Seq[AdtDecl]) extends Decl with ConditionalFlyweight[Seq[AdtDecl], AdtDecls] {
+  val id: Identifier = SimpleIdentifier("")
+  override val equalityDefiningMembers: Seq[AdtDecl] = decls
+}
+
+object AdtDecls extends CondFlyweightFactory[Seq[AdtDecl], AdtDecls, AdtDecls] {
+  override def actualCreate(args: Seq[AdtDecl]): AdtDecls = new AdtDecls(args)
+}
+
+class AdtConstructorDecl(val id: Identifier, val args: Seq[(Identifier, Sort)]) extends ConditionalFlyweight[(Identifier, Seq[(Identifier, Sort)]), AdtConstructorDecl]{
+  override val equalityDefiningMembers: (Identifier, Seq[(Identifier, Sort)]) = (id, args);
+}
+
+object AdtConstructorDecl extends CondFlyweightFactory[(Identifier, Seq[(Identifier, Sort)]), AdtConstructorDecl, AdtConstructorDecl] {
+  override def actualCreate(args: (Identifier, Seq[(Identifier, Sort)])): AdtConstructorDecl = new AdtConstructorDecl(args._1, args._2)
+}
+
+class AdtConstructor(val id: Identifier, val argSorts: Seq[Sort], val resultSort: Sort) extends Applicable with ConditionalFlyweight[(Identifier, Seq[Sort], Sort), AdtConstructor] {
+  override val equalityDefiningMembers: (Identifier, Seq[Sort], Sort) = (id, argSorts, resultSort);
+}
+
+object AdtConstructor extends CondFlyweightFactory[(Identifier, Seq[Sort], Sort), AdtConstructor, AdtConstructor] {
+  override def actualCreate(args: (Identifier, Seq[Sort], Sort)): AdtConstructor = new AdtConstructor(args._1, args._2, args._3)
+}
+
+class AdtDestructor(val id: Identifier, val rcvSort: Sort, val resultSort: Sort) extends Applicable with ConditionalFlyweight[(Identifier, Sort, Sort), AdtDestructor] {
+  override val equalityDefiningMembers: (Identifier, Sort, Sort) = (id, rcvSort, resultSort);
+  override def argSorts: Stack[Sort] = Seq(rcvSort)
+}
+
+object AdtDestructor extends CondFlyweightFactory[(Identifier, Sort, Sort), AdtDestructor, AdtDestructor] {
+  override def actualCreate(args: (Identifier, Sort, Sort)): AdtDestructor = new AdtDestructor(args._1, args._2, args._3)
+}
+
+class AdtDiscriminator(val id: Identifier, val rcv: Term) extends Term with ConditionalFlyweight[(Identifier, Term), AdtDiscriminator] {
+  override val equalityDefiningMembers: (Identifier, Term) = (id, rcv)
+  override def sort: Sort = Bool
+}
+
+object AdtDiscriminator extends CondFlyweightFactory[(Identifier, Term), AdtDiscriminator, AdtDiscriminator] {
+  override def actualCreate(args: (Identifier, Term)): AdtDiscriminator = new AdtDiscriminator(args._1, args._2)
 }
 
 class SortWrapperDecl private[terms] (val from: Sort, val to: Sort) extends Decl with ConditionalFlyweight[(Sort, Sort), SortWrapperDecl] {
@@ -1130,7 +1186,7 @@ object Equals extends ((Term, Term) => BooleanTerm) {
 
             BuiltinEquals(e0, e1)
 
-          case _: sorts.Seq | _: sorts.Set | _: sorts.Multiset | _: sorts.Map => CustomEquals(e0, e1)
+          case _: sorts.Multiset | _: sorts.Map => CustomEquals(e0, e1)
           case _ => BuiltinEquals(e0, e1)
         }
     }
@@ -2322,15 +2378,6 @@ class MagicWandSnapshot(val mwsf: Term) extends Term with ConditionalFlyweight[T
   override lazy val toString = s"wandSnap($mwsf)"
 
   override val equalityDefiningMembers: Term = mwsf
-
-  /**
-   * Apply the given snapshot of the left-hand side to the magic wand map to get the snapshot of the right-hand side
-   * which includes the values of the left-hand side.
-   *
-   * @param snapLhs The snapshot of the left-hand side that should be applied to the magic wand map.
-   * @return The snapshot of the right-hand side that preserves the values of the left-hand side.
-   */
-  def applyToMWSF(snapLhs: Term): Term = MWSFLookup(mwsf, snapLhs)
 }
 
 object MagicWandSnapshot extends PreciseCondFlyweightFactory[Term, MagicWandSnapshot]  {
@@ -2339,32 +2386,6 @@ object MagicWandSnapshot extends PreciseCondFlyweightFactory[Term, MagicWandSnap
     new MagicWandSnapshot(arg)
 }
 
-/**
- * Term that applies a [[sorts.MagicWandSnapFunction]] to a snapshot.
- * It returns a snapshot for the RHS of a magic wand that includes that values of the given snapshot.
- *
- * @param mwsf Term of sort [[sorts.MagicWandSnapFunction]]. Function from `Snap` to `Snap`.
- * @param snap Term of sort [[sorts.Snap]] to which the MWSF is applied to. It represents the values of the wand's LHS.
- */
-class MWSFLookup(val mwsf: Term, val snap: Term) extends Term with ConditionalFlyweightBinaryOp[MWSFLookup] {
-  val sort: Sort = sorts.Snap
-  override def p0: Term = mwsf
-  override def p1: Term = snap
-  override lazy val toString = s"$mwsf[$snap]"
-}
-
-object MWSFLookup extends PreciseCondFlyweightFactory[(Term, Term), MWSFLookup] {
-  override def apply(pair: (Term, Term)): MWSFLookup = {
-    val (mwsf, snap) = pair
-    utils.assertSort(mwsf, "mwsf", sorts.MagicWandSnapFunction)
-    utils.assertSort(snap, "snap", sorts.Snap)
-    createIfNonExistent(pair)
-  }
-
-  /** Create an instance of [[viper.silicon.state.terms.MWSFLookup]]. */
-  override def actualCreate(args: (Term, Term)): MWSFLookup =
-    new MWSFLookup(args._1, args._2)
-}
 
 class MagicWandChunkTerm(val chunk: MagicWandChunk) extends Term with ConditionalFlyweight[MagicWandChunk, MagicWandChunkTerm] {
   override val sort = sorts.Unit /* TODO: Does this make sense? */

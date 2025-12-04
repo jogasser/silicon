@@ -44,12 +44,13 @@ class TermToSMTLib2Converter
     case sorts.Snap => "$Snap"
     case sorts.Ref => "$Ref"
     case sorts.Map(keySort, valueSort) => text("Map") <> "<" <> doRender(keySort, true) <> "~_" <> doRender(valueSort, true) <> ">"
-    case sorts.Seq(elementSort) => text("Seq<") <> doRender(elementSort, true) <> ">"
-    case sorts.Set(elementSort) => text("Set<") <> doRender(elementSort, true) <> ">"
+    case sorts.Seq(elementSort) => if (alwaysSanitize) text("Seq<") <> doRender(elementSort, alwaysSanitize = true) <> ">" else text("(Seq ") <> doRender(elementSort) <> ")"
+    case sorts.Set(elementSort) => if (alwaysSanitize) text("Set<") <> doRender(elementSort, alwaysSanitize = true) <> ">" else text("(Set ") <> doRender(elementSort) <> ")"
     case sorts.Multiset(elementSort) => text("Multiset<") <> doRender(elementSort, true) <> ">"
     case sorts.UserSort(id) => render(id)
     case sorts.SMTSort(id) => if (alwaysSanitize) render(id) else id.name
-
+    case sorts.AdtType(id, types) => if (alwaysSanitize) (if (types.nonEmpty) text(render(id)) <> text("<") <> ssep(types.map(t => doRender(t, alwaysSanitize = true)).toSeq, ",") <> text(">") else render(id)) else
+      if (types.nonEmpty) parens(text(render(id)) <+> ssep(types.map(t => doRender(t)).toSeq, space)) else render(id)
     case sorts.Unit =>
       /* Sort Unit corresponds to Scala's Unit type and is used, e.g., as the
        * domain sort of nullary functions.
@@ -102,7 +103,7 @@ class TermToSMTLib2Converter
       val argDocs = (args map (v => parens(text(render(v.id)) <+> render(v.sort)))).to(collection.immutable.Seq)
       val bodyDoc = render(body)
       val bodySortDoc = render(body.sort)
-      parens(text("define-fun-rec") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
+      parens(text("define-fun") <+> idDoc <+> parens(ssep(argDocs, space)) <+> bodySortDoc <> nest(defaultIndent, line <> bodyDoc))
     case FunctionDefs(funcs) =>
       val funDefs = funcs map (f => {
         val args = (f.args map (v => parens(text(render(v.id)) <+> render(v.sort)))).to(collection.immutable.Seq)
@@ -110,6 +111,21 @@ class TermToSMTLib2Converter
       });
       val bodies = funcs map (f => render(f.body))
       parens(text("define-funs-rec") <+> parens(ssep(funDefs, line)) <+> parens(ssep(bodies, line)))
+    case AdtDecls(adtDecls) =>
+      val typeArgDef = adtDecls.map(d => parens(text(render(d.id)) <+> text(d.typeVars.length.toString)))
+
+      val bodies = adtDecls.map(d => {
+        val b = d.constructors.map(c => {
+          val argDefs = c.args.map(a => parens(text(render(a._1)) <+> render(a._2)))
+          parens(text(render(c.id)) <+> ssep(argDefs, space))
+        })
+        if(d.typeVars.nonEmpty)
+          parens(text("par") <+> parens(ssep(d.typeVars.map(text), space)) <+> parens(ssep(b, line)))
+        else
+          parens(ssep(b, line))
+      })
+
+      parens(text("declare-datatypes") <+> parens(ssep(typeArgDef, space)) <> parens(ssep(bodies, line)))
   }
 
   def convert(t: Term): String = {
@@ -188,8 +204,6 @@ class TermToSMTLib2Converter
     case bop: BuiltinEquals => renderBinaryOp("=", bop)
 
     case bop: CustomEquals => bop.p0.sort match {
-      case _: sorts.Seq => renderBinaryOp("Seq_equal", bop)
-      case _: sorts.Set => renderApp("Set_equal", Seq(bop.p0, bop.p1), bop.sort)
       case _: sorts.Multiset => renderApp("Multiset_equal", Seq(bop.p0, bop.p1), bop.sort)
       case _: sorts.Map => renderApp("Map_equal", Seq(bop.p0, bop.p1), bop.sort)
       case sort => sys.error(s"Don't know how to translate equality between symbols $sort-typed terms")
@@ -231,28 +245,28 @@ class TermToSMTLib2Converter
 
     /* Sequences */
 
-    case SeqRanged(t0, t1) => renderBinaryOp("Seq_range", render(t0), render(t1))
-    case SeqSingleton(t0) => parens(text("Seq_singleton") <+> render(t0))
-    case bop: SeqAppend => renderBinaryOp("Seq_append", bop)
-    case uop: SeqLength => renderUnaryOp("Seq_length", uop)
-    case bop: SeqAt => renderBinaryOp("Seq_index", bop)
-    case bop: SeqTake => renderBinaryOp("Seq_take", bop)
-    case bop: SeqDrop => renderBinaryOp("Seq_drop", bop)
-    case bop: SeqIn => renderBinaryOp("Seq_contains", bop)
-    case bop: SeqInTrigger => renderBinaryOp("Seq_contains_trigger", bop)
-    case SeqUpdate(t0, t1, t2) => renderNAryOp("Seq_update", t0, t1, t2)
+    case SeqRanged(t0, t1) => renderBinaryOp("seq.range", render(t0), render(t1))
+    case SeqSingleton(t0) => parens(text("seq.unit") <+> render(t0))
+    case bop: SeqAppend => renderBinaryOp("seq.++", bop)
+    case uop: SeqLength => renderUnaryOp("seq.len", uop)
+    case bop: SeqAt => renderBinaryOp("seq.nth", bop)
+    case bop: SeqTake => renderNAryOp("seq_extract_" + convertSanitized(bop.p0.sort), bop.p0, IntLiteral(0), bop.p1)
+    case bop: SeqDrop => renderNAryOp("seq_extract_" + convertSanitized(bop.p0.sort), bop.p0, bop.p1, SeqLength(bop.p0))
+    case bop: SeqIn => renderBinaryOp("seq.contains", render(bop.p0), render(SeqSingleton(bop.p1)))
+    case bop: SeqInTrigger => renderBinaryOp("seq.contains", render(bop.p0), render(SeqSingleton(bop.p1)))
+    case SeqUpdate(t0, t1, t2) => renderNAryOp("seq.update", t0, t1, t2)
 
     /* Sets */
 
-    case uop: SingletonSet => renderApp("Set_singleton", Seq(uop.p), uop.sort)
-    case bop: SetAdd => renderApp("Set_unionone", Seq(bop.p0, bop.p1), bop.sort)
-    case uop: SetCardinality => renderApp("Set_card", Seq(uop.p), uop.sort)
-    case bop: SetDifference => renderApp("Set_difference", Seq(bop.p0, bop.p1), bop.sort)
-    case bop: SetIntersection => renderApp("Set_intersection", Seq(bop.p0, bop.p1), bop.sort)
-    case bop: SetUnion => renderApp("Set_union", Seq(bop.p0, bop.p1), bop.sort)
-    case bop: SetIn => renderApp("Set_in", Seq(bop.p0, bop.p1), bop.sort)
-    case bop: SetSubset => renderApp("Set_subset", Seq(bop.p0, bop.p1), bop.sort)
-    case bop: SetDisjoint => renderApp("Set_disjoint", Seq(bop.p0, bop.p1), bop.sort)
+    case uop: SingletonSet => renderUnaryOp("set.singleton", render(uop.p))
+    case bop: SetAdd => renderBinaryOp("set.insert", render(bop.p1), render(bop.p0))
+    case uop: SetCardinality => renderUnaryOp("set.card", render(uop.p))
+    case bop: SetDifference => renderBinaryOp("set.minus", render(bop.p0), render(bop.p1))
+    case bop: SetIntersection => renderBinaryOp("set.inter", render(bop.p0), render(bop.p1))
+    case bop: SetUnion => renderBinaryOp("set.union", render(bop.p0), render(bop.p1))
+    case bop: SetIn => renderBinaryOp("set.member", render(bop.p0), render(bop.p1))
+    case bop: SetSubset => renderBinaryOp("set.subset", render(bop.p0), render(bop.p1))
+    case bop: SetDisjoint => render(Equals(EmptySet(bop.p0.sort), SetIntersection(bop.p0, bop.p1)))
 
     /* Multisets */
 
@@ -334,7 +348,8 @@ class TermToSMTLib2Converter
       parens(text("let") <+> parens(docBindings) <+> render(body))
 
     case MagicWandSnapshot(mwsf) => render(mwsf)
-    case MWSFLookup(mwsf, snap) => renderApp("MWSF_apply", Seq(mwsf, snap), sorts.Snap)
+
+    case AdtDiscriminator(id, rcv) => parens(parens(text("_") <+> text("is") <+> render(id)) <+> render(rcv))
 
     case _: MagicWandChunkTerm
        | _: Quantification =>
@@ -397,8 +412,8 @@ class TermToSMTLib2Converter
     case True => "true"
     case False => "false"
     case Null => "$Ref.null"
-    case _: SeqNil => renderApp("Seq_empty", Seq(), literal.sort)
-    case _: EmptySet => renderApp("Set_empty", Seq(), literal.sort)
+    case _: SeqNil => parens(text("as") <+> text("seq.empty") <+> render(literal.sort))
+    case _: EmptySet => parens(text("as") <+> text("set.empty") <+> render(literal.sort))
     case _: EmptyMultiset => renderApp("Multiset_empty", Seq(), literal.sort)
     case _: EmptyMap => renderApp("Map_empty", Seq(), literal.sort)
   }

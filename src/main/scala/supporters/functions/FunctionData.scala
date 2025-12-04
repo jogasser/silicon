@@ -8,7 +8,7 @@ package viper.silicon.supporters.functions
 
 import scala.annotation.unused
 import com.typesafe.scalalogging.LazyLogging
-import viper.silicon.state.{Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
+import viper.silicon.state.{FunctionCallTransformer, Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.FatalResult
@@ -51,7 +51,6 @@ class FunctionData(val programFunction: ast.Function,
    */
 
   val function: HeapDepFun = symbolConverter.toFunction(programFunction)
-  val limitedFunction = functionSupporter.limitedVersion(function)
 
   val formalArgs: Map[ast.AbstractLocalVar, Var] = toMap(
     for (arg <- programFunction.formalArgs;
@@ -225,20 +224,8 @@ class FunctionData(val programFunction: ast.Function,
   }
 
   def transformAllFunctionCalls(term: Term, transformFun: HeapDepFun => HeapDepFun): Term = {
-    var replacedTerms = term.transform(
-      { case app: App if app.applicable.isInstanceOf[HeapDepFun] => app.copy(applicable = functionSupporter.limitedVersion(app.applicable.asInstanceOf[HeapDepFun]))}
-    )(_ => true)
-    val limitedApps = replacedTerms.deepCollect({ case app: App if app.applicable.isInstanceOf[HeapDepFun] => app}).toSet
-
-    limitedApps.foreach(app => {
-      val origFun = app.applicable.asInstanceOf[HeapDepFun]
-      val newApp = App(transformFun(origFun.copy(id = origFun.id match {
-        case SuffixedIdentifier(prefix, _, _) => prefix
-        case _ => origFun.id
-      })), app.args)
-      replacedTerms = And(replacedTerms, newApp)
-    })
-    replacedTerms.replace(formalResult, App(limitedFunction, arguments))
+    val replacedTerms = FunctionCallTransformer.transformBody(term, program, transformFun)
+    replacedTerms.replace(formalResult, App(function, arguments))
   }
 
   def postsVersionDef(phaseInfo: Map[Function, Int]): FunctionDef = {

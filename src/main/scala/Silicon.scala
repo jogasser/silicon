@@ -26,8 +26,6 @@ import viper.silver.cfg.silver.SilverCfg
 import viper.silver.logger.ViperStdOutLogger
 import viper.silver.utility.{FileProgramSubmitter}
 
-import scala.util.chaining._
-
 object Silicon {
   val name = BuildInfo.projectName
 
@@ -116,7 +114,8 @@ class Silicon(val reporter: Reporter, private var debugInfo: Seq[(String, Any)] 
     assert(lifetimeState == LifetimeState.Instantiated, "Silicon can only be configured once")
     lifetimeState = LifetimeState.Configured
 
-    _config = new Config(args)
+    _config = new Config("--disableAdtDomainTransformation" +: args)
+
     if (!config.exit) {
       _symbExLog = SymbExLogger.ofConfig(_config)
     }

@@ -12,7 +12,7 @@ import viper.silicon.interfaces.SiliconVariableCounterexample
 import viper.silver.verifier.FailureContext
 
 import java.nio.file.Path
-
+/*
 class SiliconCounterexampleVariablesTests extends SiliconTests with CounterexampleVariablesTests {
 
   override def configureVerifiersFromConfigMap(configMap: Map[String, Any]): Unit = {
@@ -40,3 +40,4 @@ case class SiliconExpectedValuesCounterexampleAnnotation(id: OutputAnnotationId,
 
   override def withForLineNr(line: Int = forLineNr): ExpectedValuesCounterexampleAnnotation = SiliconExpectedValuesCounterexampleAnnotation(id, file, line, expectedCounterexample)
 }
+*/

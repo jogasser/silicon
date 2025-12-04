@@ -10,6 +10,6 @@ class SiliconTestsQuasihavoc extends SiliconTests {
   override val testDirectories: Seq[String] = Seq("quasihavoc")
 
   override val commandLineArguments: Seq[String] = Seq(
-    "--timeout", "300" /* seconds */,
+    "--timeout", "30" /* seconds */,
     "--enableMoreCompleteExhale")
 }

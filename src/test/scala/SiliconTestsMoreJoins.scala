@@ -18,7 +18,7 @@ class SiliconTestsMoreJoins extends SiliconTests {
   }
 
   override val commandLineArguments: Seq[String] = Seq(
-    "--timeout", "300" /* seconds */,
+    "--timeout", "30" /* seconds */,
     "--moreJoins=2"
   )
 }

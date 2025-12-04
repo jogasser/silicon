@@ -11,6 +11,7 @@ import viper.silicon.rules.functionSupporter
 import viper.silicon.state.Identifier
 import viper.silicon.state.terms._
 import viper.silver.ast.{AnnotationInfo, WeightedQuantifier}
+import viper.silver.plugin.standard.adt.{AdtConstructorApp, AdtDestructorApp, AdtDiscriminatorApp}
 
 trait ExpressionTranslator {
   /* TODO: Shares a lot of code with DefaultEvaluator. Unfortunately, it doesn't seem to be easy to
@@ -90,13 +91,7 @@ trait ExpressionTranslator {
         val vars = eQuant.variables map (_.localVar)
 
         /** IMPORTANT: Keep in sync with [[viper.silicon.rules.evaluator.evalTrigger]] */
-        val translatedTriggers = eTriggers map (triggerSet => Trigger(triggerSet.exps map (trigger =>
-          f(trigger) match {
-            case app @ App(fun: HeapDepFun, _) =>
-              app.copy(applicable = functionSupporter.limitedVersion(fun))
-            case other => other
-          }
-        )))
+        val translatedTriggers = eTriggers map (triggerSet => Trigger(triggerSet.exps map (trigger => f(trigger))))
         val weight = sourceQuant.info.getUniqueInfo[WeightedQuantifier] match {
           case Some(w) =>
             if (w.weight >= 0) {
@@ -206,7 +201,7 @@ trait ExpressionTranslator {
       case ast.SeqLength(e) => SeqLength(f(e))
       case ast.SeqTake(e0, e1) => SeqTake(f(e0), f(e1))
       case ast.EmptySeq(typ) => SeqNil(toSort(typ))
-      case ast.RangeSeq(e0, e1) => SeqRanged(f(e0), f(e1))
+      case range: ast.RangeSeq=> translate(toSort)(ast.FuncApp(SequencesContributor.rangeFun, Seq(range.low, range.high))(range.pos, range.info, range.errT))
       case ast.SeqUpdate(e0, e1, e2) => SeqUpdate(f(e0), f(e1), f(e2))
 
       case ast.ExplicitSeq(es) =>
@@ -248,6 +243,10 @@ trait ExpressionTranslator {
       /* Other expressions */
 
       case ast.Let(lvd, e, body) => Let(f(lvd.localVar).asInstanceOf[Var], f(e), f(body))
+
+      case con: AdtConstructorApp => App(AdtConstructor(Identifier(con.adtName + "$" + con.name), con.args.map(_.typ).map(toSort), toSort(con.typ)), con.args.map(f))
+      case des: AdtDestructorApp => App(AdtDestructor(Identifier(des.adtName + "$" + des.name), toSort(des.rcv.typ), toSort(des.typ)), f(des.rcv))
+      case dis: AdtDiscriminatorApp => AdtDiscriminator(Identifier(dis.adtName + "$" + dis.name), f(dis.rcv))
 
       /* Unsupported (because unexpected) expressions */
 

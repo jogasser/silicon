@@ -21,11 +21,13 @@ import viper.silicon.state.terms._
 import viper.silicon.state.terms.implicits._
 import viper.silicon.state.terms.perms.IsPositive
 import viper.silicon.state.terms.predef.`?r`
+import viper.silicon.supporters.SequencesContributor
 import viper.silicon.utils.ast._
 import viper.silicon.utils.{freshSnap, toSf}
 import viper.silicon.verifier.Verifier
 import viper.silicon.{Map, TriggerSets}
 import viper.silver.ast.{AnnotationInfo, LocalVarWithVersion, TrueLit, WeightedQuantifier}
+import viper.silver.plugin.standard.adt.{AdtConstructorApp, AdtDestructorApp, AdtDiscriminatorApp}
 import viper.silver.reporter.{AnnotationWarning, WarningsDuringVerification}
 import viper.silver.utility.Common.Rational
 
@@ -859,7 +861,8 @@ object evaluator extends EvaluationRules {
                 val exp = ast.Forall(eQuant.variables, eTriggers, body)(sourceQuant.pos, sourceQuant.info, sourceQuant.errT)
                 DebugExp.createInstance(exp, expNew)
               })
-              v1.decider.assume(Quantification(Forall, tVars, FunctionPreconditionTransformer.transform(tBody, s1.program), tTriggers, name, quantWeight), debugExp)
+              val transformed = FunctionCallTransformer.transform(tBody, s1.program, FunctionCallTransformer.getTransformFunction(s1))
+              v1.decider.assume(Quantification(Forall, tVars, transformed, tTriggers, name, quantWeight), debugExp)
             }
 
             val tQuant = Quantification(qantOp, tVars, tBody, tTriggers, name, quantWeight)
@@ -966,7 +969,7 @@ object evaluator extends EvaluationRules {
               }
 
               val fun = v3.symbolConverter.toFunction(func);
-              val res = getFApp(functionSupporter.limitedVersion(fun), snap1 :: tArgs);
+              val res = getFApp(fun, snap1 :: tArgs);
               if(s3.functionData(func).phase > 0) {
                 val funToCall = s3.functionData(func).phase match {
                   case 1 => functionSupporter.postconditionVersion(fun)
@@ -1137,9 +1140,8 @@ object evaluator extends EvaluationRules {
       case ast.SeqLength(e0) => eval(s, e0, pve, v)((s1, t0, e0New, v1) =>
         Q(s1, SeqLength(t0), e0New.map(e0p => ast.SeqLength(e0p)(e.pos, e.info, e.errT)), v1))
       case ast.EmptySeq(typ) => Q(s, SeqNil(v.symbolConverter.toSort(typ)), Option.when(withExp)(e), v)
-      case ast.RangeSeq(e0, e1) => evalBinOp(s, e0, e1, SeqRanged, pve, v)((s1, t, e0New, e1New, v1) =>
-        Q(s1, t, e0New.map(e0p => ast.RangeSeq(e0p, e1New.get)(e.pos, e.info, e.errT)), v1))
-
+      case range: ast.RangeSeq => eval(s, ast.FuncApp(SequencesContributor.rangeFun, Seq(range.low, range.high))(range.pos, range.info, range.errT), pve, v)((s1, t0, e0New, v1) =>
+        Q(s1, t0, e0New.map(e => ast.RangeSeq(e.subExps(0), e.subExps(1))(e.pos, e.info, e.errT)), v1))
       case ast.SeqUpdate(e0, e1, e2) =>
         evals2(s, Seq(e0, e1, e2), Nil, _ => pve, v)({ case (s1, Seq(t0, t1, t2), esNew, v1) =>
           val eNew = esNew.map(es => ast.SeqUpdate(es.head, es(1), es(2))(e.pos, e.info, e.errT))
@@ -1311,12 +1313,28 @@ object evaluator extends EvaluationRules {
         evals2(s, Seq(key, base), Nil, _ => pve, v)({
           case (s1, Seq(keyT, baseT), esNew, v1) => Q(s1, SetIn(keyT, MapDomain(baseT)), esNew.map(es => ast.MapContains(es(0), es(1))(e.pos, e.info, e.errT)), v1)
         })
-
+      case con: AdtConstructorApp =>
+        evals(s, con.args, _ => pve, v)((s1, tArgs, eArgsNew, v1) => {
+          val app = App(AdtConstructor(Identifier(con.adtName + "$" + con.name), tArgs.map(_.sort), v.symbolConverter.toSort(con.typ)), tArgs)
+          val appNew = eArgsNew.map(a => AdtConstructorApp(con.name, a, con.typVarMap)(con.pos, con.info, con.typ, con.adtName, con.errT))
+          Q(s1, app, appNew, v1)
+        })
+      case des: AdtDestructorApp =>
+        eval(s, des.rcv, pve, v)((s1, tRcv, eRcvNew, v1) => {
+          val app = App(AdtDestructor(Identifier(des.adtName + "$" + des.name), tRcv.sort, v.symbolConverter.toSort(des.typ)), tRcv)
+          val appNew = eRcvNew.map(a => AdtDestructorApp(des.name, a, des.typVarMap)(des.pos, des.info, des.typ, des.adtName, des.errT))
+          Q(s1, app, appNew, v1)
+        })
+      case dis: AdtDiscriminatorApp =>
+        eval(s, dis.rcv, pve, v)((s1, tRcv, eRcvNew, v1) => {
+          val tDis = AdtDiscriminator(Identifier(dis.adtName + "$" + dis.name), tRcv)
+          val appNew = eRcvNew.map(a => AdtDiscriminatorApp(dis.name, a, dis.typVarMap)(dis.pos, dis.info, dis.adtName, dis.errT))
+          Q(s1, tDis, appNew, v1)
+        })
       /* Unexpected nodes */
 
       case _: ast.InhaleExhaleExp =>
         createFailure(viper.silicon.utils.consistency.createUnexpectedInhaleExhaleExpressionError(e), v, s, "valid AST")
-
       case _: ast.EpsilonPerm
          | _: ast.Maplet
          | _: ast.FieldAccessPredicate
@@ -1616,7 +1634,8 @@ object evaluator extends EvaluationRules {
           * Keep this code in sync with [[viper.silicon.supporters.ExpressionTranslator.translate]]
           *
           */
-        app.copy(applicable = if (s.currentMember.get.isInstanceOf[ast.Function]) functionSupporter.limitedVersion(fun) else fun)
+        // TODO jga investigate for quantifier encoding
+        app.copy(applicable = if (s.currentMember.get.isInstanceOf[ast.Function]) fun else fun)
       case other =>
         other
     }

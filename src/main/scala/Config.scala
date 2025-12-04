@@ -247,6 +247,11 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
     default = Some(0),
     noshort = true
   )
+  val sequenceBounds: ScallopOption[Int] = opt[Int]("sequenceBounds",
+    descr = (  "Adds a bound for the length of all sequences. (default: 0, i.e. no bounds). "),
+    default = Some(0),
+    noshort = true
+  )
 
   // DEPRECATED and replaced by proverSaturationTimeout
   // but continues to work for now for backwards compatibility.
@@ -378,7 +383,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
 
   private val rawProverResourcesPerMillisecond: ScallopOption[Int] = opt[Int]("proverResourcesPerMillisecond",
     descr = "Prover resources per milliseconds. Is used to convert timeouts to resource bounds.",
-    default = Some(60000),
+    default = Some(150),
     noshort = true,
   )
 
@@ -457,7 +462,7 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   private val rawCvc5Exe = opt[String]("cvc5Exe",
     descr = (s"cvc5 executable. The environment variable ${Cvc5ProverStdIO.exeEnvironmentalVariable}"
              + " can also be used to specify the path of the executable."),
-    default = None,
+    default = Some("/usr/local/bin/cvc5"),
     noshort = true
   )
 
@@ -805,9 +810,46 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
   val prover: ScallopOption[String] = opt[String]("prover",
     descr = s"One of the provers ${Z3ProverStdIO.name}, ${Cvc5ProverStdIO.name}, ${Z3ProverAPI.name}. " +
             s"(default: ${Z3ProverStdIO.name}).",
-    default = Some(Z3ProverStdIO.name),
+    default = Some(Cvc5ProverStdIO.name),
     noshort = true
   )
+
+  val cvc5EMatching: ScallopOption[String] = opt[String]("cvc5EMatching",
+    descr = "CVC5 e-matching option (default: true)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5FmfFunRlv: ScallopOption[String] = opt[String]("cvc5FmfFunRlv",
+    descr = "CVC5 fmf-fun-rlv option (default: true)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5fmf: ScallopOption[String] = opt[String]("cvc5FiniteModelFind",
+    descr = "CVC5 finite model find option (default: fmc)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5cbqi: ScallopOption[String] = opt[String]("cvc5Cbqi",
+    descr = "CVC5 cbqi option (default: false)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5Mbqi: ScallopOption[String] = opt[String]("cvc5Mbqi",
+    descr = "CVC5 mbqi option (default: false)",
+    default = Some("false"),
+    noshort = true
+  )
+
+  val cvc5cegqi: ScallopOption[String] = opt[String]("cvc5Cegqi",
+    descr = "CVC5 cegqi option (default: false)",
+    default = Some("false"),
+    noshort = true
+  )
+
 
   val enableDebugging: ScallopOption[Boolean] = opt[Boolean]("enableDebugging",
     descr = "Enable debugging mode",

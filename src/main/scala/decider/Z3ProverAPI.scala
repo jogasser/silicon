@@ -9,7 +9,7 @@ package viper.silicon.decider
 import com.typesafe.scalalogging.LazyLogging
 import viper.silicon.common.config.Version
 import viper.silicon.interfaces.decider.{Prover, Result, Sat, Unknown, Unsat}
-import viper.silicon.state.IdentifierFactory
+import viper.silicon.state.{Identifier, IdentifierFactory}
 import viper.silicon.state.terms.{App, Decl, Fun, FunctionDecl, Implies, MacroDecl, Not, Quantification, Sort, SortDecl, SortWrapperDecl, Term, TriggerGenerator, Var, sorts}
 import viper.silicon.{Config, Map}
 import viper.silicon.verifier.Verifier
@@ -210,6 +210,7 @@ class Z3ProverAPI(uniqueId: String,
       ctx = null
     }
   }
+  def freshIdentifier(name: String): Identifier = identifierFactory.fresh(name)
 
   def push(n: Int = 1, timeout: Option[Int] = None): Unit = {
     endPreamblePhase()

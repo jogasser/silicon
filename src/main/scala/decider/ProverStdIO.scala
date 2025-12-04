@@ -13,8 +13,8 @@ import com.typesafe.scalalogging.LazyLogging
 import viper.silicon.common.config.Version
 import viper.silicon.interfaces.decider.{Prover, Result, Sat, Unknown, Unsat}
 import viper.silicon.reporting.{ExternalToolError, ProverInteractionFailed}
-import viper.silicon.state.IdentifierFactory
-import viper.silicon.state.terms._
+import viper.silicon.state.{IdentifierFactory, Identifier}
+import viper.silicon.state.terms.{sorts, _}
 import viper.silicon.verifier.Verifier
 import viper.silver.verifier.{DefaultDependency => SilDefaultDependency}
 import viper.silicon.{Config, Map, toMap}
@@ -396,6 +396,8 @@ abstract class ProverStdIO(uniqueId: String,
     logToFile("; " + sanitisedStr)
   }
 
+  def freshIdentifier(name: String): Identifier = identifierFactory.fresh(name)
+
   def fresh(name: String, argSorts: Seq[Sort], resultSort: Sort): Fun = {
     val id = identifierFactory.fresh(name)
     val fun = Fun(id, argSorts, resultSort)
@@ -403,7 +405,27 @@ abstract class ProverStdIO(uniqueId: String,
 
     emit(termConverter.convert(decl))
 
+    if(argSorts.isEmpty && Verifier.config.sequenceBounds.getOrElse(0) > 0) {
+      resultSort match {
+        case s: sorts.Seq => assumeSeqBoundRec(App(fun, Seq()), s)
+        case _ =>
+      }
+    }
+
     fun
+  }
+
+  def assumeSeqBoundRec(term: Term, sort: sorts.Seq): Unit = {
+    val bound = Verifier.config.sequenceBounds.getOrElse(0)
+
+    assume(Less(SeqLength(term), IntLiteral(bound)))
+    sort.elementsSort match {
+      case s: sorts.Seq =>
+        for (i <- 0 until bound) {
+          assumeSeqBoundRec(SeqAt(term, IntLiteral(i)), s)
+        }
+      case _ =>
+    }
   }
 
   def declare(decl: Decl): Unit = {
@@ -468,7 +490,7 @@ abstract class ProverStdIO(uniqueId: String,
       result = readLineFromInput()
       if (result.toLowerCase != "success") comment(result)
 
-      val warning = result.startsWith("WARNING")
+      val warning = result.startsWith("WARNING") || result.startsWith("Could not evaluate")
       if (warning) {
         val msg = s"Prover warning: $result"
         reporter report InternalWarningMessage(msg)

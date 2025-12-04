@@ -11,6 +11,32 @@ import viper.silicon.Config
 import viper.silicon.state.terms.{Sort, Term, sorts}
 import viper.silicon.verifier.Verifier
 import viper.silver.ast
+import viper.silver.ast.{NoInfo, NoPosition, NoTrafos}
+
+object SequencesContributor {
+  lazy val rangeFun: ast.Function = {
+    val i = ast.LocalVar("i", ast.Int)();
+    val j = ast.LocalVar("j", ast.Int)();
+    val recCall = ast.FuncApp("seq.range", Seq(ast.Add(i, ast.IntLit(1)())(), j))(pos =NoPosition, info=NoInfo, typ=ast.SeqType(ast.Int), errT=NoTrafos)
+    val result = ast.Result(ast.SeqType(ast.Int))()
+    ast.Function("seq.range",
+      Seq(ast.LocalVarDecl("i", ast.Int)(), ast.LocalVarDecl("j", ast.Int)()),
+      ast.SeqType(ast.Int),
+      Seq(), // pres
+      Seq(
+        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqLength(result)(), ast.Sub(j, i)())())(),
+        ast.Implies(ast.Not(ast.GtCmp(j, i)())(), ast.EqCmp(result, ast.EmptySeq(ast.Int)())())(),
+        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqTake(result, ast.IntLit(1)())(), ast.ExplicitSeq(Seq(i))())())(),
+        ast.Implies(ast.GtCmp(j, i)(), ast.EqCmp(ast.SeqDrop(result, ast.IntLit(1)())(), recCall)())(),
+      ), // posts
+      Some(ast.CondExp(
+        ast.GtCmp(j, i)(),
+        ast.SeqAppend(ast.ExplicitSeq(Seq(i))(), recCall)(),
+        ast.EmptySeq(ast.Int)()
+      )())
+    )()
+  }
+}
 
 class DefaultSequencesContributor(val domainTranslator: DomainsTranslator[Term], config: Config)
     extends BuiltinDomainsContributor {
@@ -30,11 +56,6 @@ class DefaultSequencesContributor(val domainTranslator: DomainsTranslator[Term],
   override protected def transformSourceDomainInstance(sequenceDomainInstance: ast.Domain, typ: ast.DomainType): ast.Domain = {
     // sequences.vpr (val sourceResource) contains functions and axioms for generic sequences (Seq[E]), and those
     // for integer sequences (Seq[Int]): currently, function Seq_range and corresponding axioms.
-    // Since the function isn't generic but nevertheless included in each sequence domain instance Silicon emits
-    // (e.g. part of Seq[Int] and of Seq[Ref]), the function would be declared multiple times on the SMT level,
-    // which isn't allowed. In order to prevent this, non-generic functions and axioms are removed from all sequence
-    // domain instances but Seq[Int].
-
     if (typ.typVarsMap.head._2 == ast.Int) {
       sequenceDomainInstance
     } else {
