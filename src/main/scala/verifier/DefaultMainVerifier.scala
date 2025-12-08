@@ -18,7 +18,7 @@ import viper.silver.ast
 import viper.silver.components.StatefulComponent
 import viper.silicon._
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
-import viper.silicon.decider.SMTLib2PreambleReader
+import viper.silicon.decider.{Cvc5ProverStdIO, SMTLib2PreambleReader}
 import viper.silicon.extensions.ConditionalPermissionRewriter
 import viper.silicon.interfaces._
 import viper.silicon.interfaces.decider.ProverLike
@@ -251,7 +251,6 @@ class DefaultMainVerifier(config: Config,
       }).toList
       functionsSupporter.defineFunctionsOfHeight(height)
     })
-    functionsSupporter.defineFunctionsAfterVerification()
 
     val predicateVerificationResults = predicateSupporter.units.toList flatMap (predicate => {
       val startTime = System.currentTimeMillis()
@@ -475,16 +474,20 @@ class DefaultMainVerifier(config: Config,
     predicateSupporter
   )
 
-  private val sortDeclarationOrder: Seq[PreambleContributor[_, _, _]] = Seq(
-    multisetsContributor,
-    mapsContributor,
-    domainsContributor,
-    fieldValueFunctionsContributor,
-    predicateAndWandSnapFunctionsContributor,
-    magicWandSnapFunctionsContributor,
-    functionsSupporter,
-    predicateSupporter
-  )
+  lazy val isZ3 = !Verifier.config.prover.getOrElse("").eq(Cvc5ProverStdIO.name);
+
+  private val sortDeclarationOrder: Seq[PreambleContributor[_, _, _]] =
+    (if (isZ3) { Seq(setsContributor) } else { Seq() }) ++
+    Seq(
+      multisetsContributor,
+      mapsContributor,
+      domainsContributor,
+      fieldValueFunctionsContributor,
+      predicateAndWandSnapFunctionsContributor,
+      magicWandSnapFunctionsContributor,
+      functionsSupporter,
+      predicateSupporter
+    )
 
   private val sortWrapperDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] = Seq(
     sequencesContributor,
@@ -499,7 +502,10 @@ class DefaultMainVerifier(config: Config,
     predicateSupporter
   )
 
-  private val symbolDeclarationOrder: Seq[PreambleContributor[_, _, _]] = Seq(
+  private val symbolDeclarationOrder: Seq[PreambleContributor[_, _, _]] =
+
+    (if (isZ3) { Seq(setsContributor) } else { Seq() }) ++
+      Seq(
     /* Sequences depend on multisets ($Multiset.fromSeq, which is
      * additionally axiomatised in the sequences axioms).
      * Multisets depend on sets ($Multiset.fromSet).
@@ -515,7 +521,10 @@ class DefaultMainVerifier(config: Config,
     predicateSupporter
   )
 
-  private val axiomDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] = Seq(
+  private val axiomDeclarationOrder: Seq[PreambleContributor[Sort, _, _]] =
+
+    (if (isZ3) { Seq(setsContributor) } else { Seq() }) ++
+      Seq(
     multisetsContributor,
     mapsContributor,
     domainsContributor,

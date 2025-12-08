@@ -20,9 +20,4 @@ object functionSupporter {
     val id = function.id.withSuffix("%", "def")
     HeapDepFun(id, function.argSorts, terms.sorts.Bool)
   }
-
-  def finalVersion(function: HeapDepFun): HeapDepFun = {
-    val id = function.id.withSuffix("%", "final")
-    HeapDepFun(id, function.argSorts, terms.sorts.Bool)
-  }
 }

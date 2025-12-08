@@ -970,11 +970,10 @@ object evaluator extends EvaluationRules {
 
               val fun = v3.symbolConverter.toFunction(func);
               val res = getFApp(fun, snap1 :: tArgs);
-              if(s3.functionData(func).phase > 0) {
+              if(s4.functionData(func).phase > 0) {
                 val funToCall = s3.functionData(func).phase match {
                   case 1 => functionSupporter.postconditionVersion(fun)
-                  case 2 => functionSupporter.definitionalVersion(fun)
-                  case 3 => functionSupporter.finalVersion(fun)
+                  case _ => functionSupporter.definitionalVersion(fun)
                 }
                 val finalArgs = snap1 :: tArgs
                 v3.decider.assume(getFApp(funToCall, finalArgs), None)

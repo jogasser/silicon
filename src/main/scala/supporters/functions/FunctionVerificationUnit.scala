@@ -12,7 +12,7 @@ import viper.silver.ast
 import viper.silver.ast.utility.Functions
 import viper.silver.components.StatefulComponent
 import viper.silver.verifier.errors.{ContractNotWellformed, FunctionNotWellformed, PostconditionViolated}
-import viper.silicon.{MMap, Map, Stack, toMap}
+import viper.silicon.{Map, Stack, toMap}
 import viper.silicon.interfaces.decider.ProverLike
 import viper.silicon.interfaces._
 import viper.silicon.state._
@@ -23,7 +23,7 @@ import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.decider.Decider
 import viper.silicon.rules.{consumer, evaluator, executionFlowController, producer}
 import viper.silicon.supporters.{AnnotationSupporter, PredicateData}
-import viper.silicon.utils.ast.{BigAnd, simplifyVariableName}
+import viper.silicon.utils.ast.{simplifyVariableName}
 import viper.silicon.verifier.{Verifier, VerifierComponent}
 import viper.silicon.utils.{freshSnap, toSf}
 import viper.silver.ast.LocalVarWithVersion
@@ -307,7 +307,7 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
         phaseInfo += (data._2.function -> 2)
       })
       val decls = functionData.filter(d => d._2.height == height).values.map(data => {
-        data.defVersionDef(phaseInfo)
+        data.defVersionDef
       })
       decider.prover.declare(FunctionDefs(decls.collect({ case f: FunctionDef => f }).toSeq))
     }
@@ -324,8 +324,6 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
     }
 
     def defineFunctionsAfterVerification(sink: ProverLike = decider.prover): Unit = {
-      functionData.foreach(data => { data._2.phase = 3 } )
-
       def collectNestedCalls(b: ast.Exp, height: Int): Seq[Boolean] = {
         b.deepCollect({ case ast.FuncApp(f, _) => functionData(program.findFunction(f)).height == height })
       }
@@ -348,8 +346,8 @@ trait DefaultFunctionVerificationUnitProvider extends VerifierComponent { v: Ver
         .groupBy(data => data._2.height).toSeq
         .sortBy(d => -d._1)
         .foreach(group => {
-          group._2.filter(data => !callsFunOfSameHeight(data._2)).foreach(data => sink.declare(data._2.finalVersionDef()))
-          sink.declare(FunctionDefs(group._2.filter(data => callsFunOfSameHeight(data._2)).map(data => data._2.finalVersionDef()).toSeq))
+          group._2.filter(data => !callsFunOfSameHeight(data._2)).foreach(data => sink.declare(data._2.defVersionDef()))
+          sink.declare(FunctionDefs(group._2.filter(data => callsFunOfSameHeight(data._2)).map(data => data._2.defVersionDef()).toSeq))
         })
     }
 

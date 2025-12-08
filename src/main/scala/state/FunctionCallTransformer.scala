@@ -30,8 +30,7 @@ object FunctionCallTransformer {
       origFun match {
         case Some(fun) => s.functionData(fun).phase match {
           case 1 => functionSupporter.postconditionVersion(f)
-          case 2 => functionSupporter.definitionalVersion(f)
-          case 3 => functionSupporter.finalVersion(f)
+          case _ => functionSupporter.definitionalVersion(f)
         }
         case None => f
       }

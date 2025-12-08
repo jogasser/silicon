@@ -12,6 +12,7 @@ import viper.silver.components.StatefulComponent
 import viper.silicon.interfaces.decider.TermConverter
 import viper.silicon.state.{Identifier, SimpleIdentifier, SortBasedIdentifier, SuffixedIdentifier}
 import viper.silicon.state.terms._
+import viper.silicon.verifier.Verifier
 
 class TermToSMTLib2Converter 
     extends FastPrettyPrinterBase
@@ -22,6 +23,8 @@ class TermToSMTLib2Converter
   override val defaultWidth = 80
 
   lazy val uninitialized: Cont = value("<not initialized>")
+
+  lazy val isZ3 = !Verifier.config.prover.getOrElse("").eq(Cvc5ProverStdIO.name)
 
   private var sanitizedNamesCache: mutable.Map[String, String] = _
 
@@ -45,7 +48,8 @@ class TermToSMTLib2Converter
     case sorts.Ref => "$Ref"
     case sorts.Map(keySort, valueSort) => text("Map") <> "<" <> doRender(keySort, true) <> "~_" <> doRender(valueSort, true) <> ">"
     case sorts.Seq(elementSort) => if (alwaysSanitize) text("Seq<") <> doRender(elementSort, alwaysSanitize = true) <> ">" else text("(Seq ") <> doRender(elementSort) <> ")"
-    case sorts.Set(elementSort) => if (alwaysSanitize) text("Set<") <> doRender(elementSort, alwaysSanitize = true) <> ">" else text("(Set ") <> doRender(elementSort) <> ")"
+    case sorts.Set(elementSort) if !isZ3 => if (alwaysSanitize) text("Set<") <> doRender(elementSort, alwaysSanitize = true) <> ">" else text("(Set ") <> doRender(elementSort) <> ")"
+    case sorts.Set(elementSort) if isZ3 => text("Set<") <> doRender(elementSort, true) <> ">"
     case sorts.Multiset(elementSort) => text("Multiset<") <> doRender(elementSort, true) <> ">"
     case sorts.UserSort(id) => render(id)
     case sorts.SMTSort(id) => if (alwaysSanitize) render(id) else id.name
@@ -204,6 +208,7 @@ class TermToSMTLib2Converter
     case bop: BuiltinEquals => renderBinaryOp("=", bop)
 
     case bop: CustomEquals => bop.p0.sort match {
+      case _: sorts.Set  if isZ3 => renderApp("Set_equal", Seq(bop.p0, bop.p1), bop.sort)
       case _: sorts.Multiset => renderApp("Multiset_equal", Seq(bop.p0, bop.p1), bop.sort)
       case _: sorts.Map => renderApp("Map_equal", Seq(bop.p0, bop.p1), bop.sort)
       case sort => sys.error(s"Don't know how to translate equality between symbols $sort-typed terms")
@@ -258,15 +263,25 @@ class TermToSMTLib2Converter
 
     /* Sets */
 
-    case uop: SingletonSet => renderUnaryOp("set.singleton", render(uop.p))
-    case bop: SetAdd => renderBinaryOp("set.insert", render(bop.p1), render(bop.p0))
-    case uop: SetCardinality => renderUnaryOp("set.card", render(uop.p))
-    case bop: SetDifference => renderBinaryOp("set.minus", render(bop.p0), render(bop.p1))
-    case bop: SetIntersection => renderBinaryOp("set.inter", render(bop.p0), render(bop.p1))
-    case bop: SetUnion => renderBinaryOp("set.union", render(bop.p0), render(bop.p1))
-    case bop: SetIn => renderBinaryOp("set.member", render(bop.p0), render(bop.p1))
-    case bop: SetSubset => renderBinaryOp("set.subset", render(bop.p0), render(bop.p1))
-    case bop: SetDisjoint => render(Equals(EmptySet(bop.p0.sort), SetIntersection(bop.p0, bop.p1)))
+    case uop: SingletonSet if !isZ3 => renderUnaryOp("set.singleton", render(uop.p))
+    case bop: SetAdd if !isZ3 => renderBinaryOp("set.insert", render(bop.p1), render(bop.p0))
+    case uop: SetCardinality if !isZ3 => renderUnaryOp("set.card", render(uop.p))
+    case bop: SetDifference if !isZ3 => renderBinaryOp("set.minus", render(bop.p0), render(bop.p1))
+    case bop: SetIntersection if !isZ3 => renderBinaryOp("set.inter", render(bop.p0), render(bop.p1))
+    case bop: SetUnion if !isZ3 => renderBinaryOp("set.union", render(bop.p0), render(bop.p1))
+    case bop: SetIn if !isZ3 => renderBinaryOp("set.member", render(bop.p0), render(bop.p1))
+    case bop: SetSubset if !isZ3 => renderBinaryOp("set.subset", render(bop.p0), render(bop.p1))
+    case bop: SetDisjoint if !isZ3 => render(Equals(EmptySet(bop.p0.sort), SetIntersection(bop.p0, bop.p1)))
+
+    case uop: SingletonSet if isZ3 => renderApp("Set_singleton", Seq(uop.p), uop.sort)
+    case bop: SetAdd if isZ3 => renderApp("Set_unionone", Seq(bop.p0, bop.p1), bop.sort)
+    case uop: SetCardinality if isZ3 => renderApp("Set_card", Seq(uop.p), uop.sort)
+    case bop: SetDifference if isZ3 => renderApp("Set_difference", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: SetIntersection if isZ3 => renderApp("Set_intersection", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: SetUnion if isZ3 => renderApp("Set_union", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: SetIn if isZ3 => renderApp("Set_in", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: SetSubset if isZ3 => renderApp("Set_subset", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: SetDisjoint if isZ3 => renderApp("Set_disjoint", Seq(bop.p0, bop.p1), bop.sort)
 
     /* Multisets */
 
@@ -278,6 +293,17 @@ class TermToSMTLib2Converter
     case bop: MultisetUnion => renderApp("Multiset_union", Seq(bop.p0, bop.p1), bop.sort)
     case bop: MultisetSubset => renderApp("Multiset_subset", Seq(bop.p0, bop.p1), bop.sort)
     case bop: MultisetCount => renderApp("Multiset_count", Seq(bop.p0, bop.p1), bop.sort)
+/*
+    /* TODO Multisets as CVC5 bags, cardinality performs very very badly  */
+    case uop: SingletonMultiset => renderApp("bag", Seq(uop.p, IntLiteral(1)), uop.sort)
+    case bop: MultisetAdd => parens(text("bag.union_max") <+> render(bop.p0) <+> renderApp("bag", Seq(bop.p1, IntLiteral(1)), bop.p0.sort))
+    case uop: MultisetCardinality => renderApp("bag.card", Seq(uop.p), uop.sort)
+    case bop: MultisetDifference => renderApp("bag.difference_subtract", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: MultisetIntersection => renderApp("bag.inter_min", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: MultisetUnion => renderApp("bag.union_max", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: MultisetSubset => renderApp("bag.subbag", Seq(bop.p0, bop.p1), bop.sort)
+    case bop: MultisetCount => renderApp("bag.count", Seq(bop.p1, bop.p0), bop.sort)
+   */
 
     /* Maps */
 
@@ -413,7 +439,8 @@ class TermToSMTLib2Converter
     case False => "false"
     case Null => "$Ref.null"
     case _: SeqNil => parens(text("as") <+> text("seq.empty") <+> render(literal.sort))
-    case _: EmptySet => parens(text("as") <+> text("set.empty") <+> render(literal.sort))
+    case _: EmptySet if !isZ3 => parens(text("as") <+> text("set.empty") <+> render(literal.sort))
+    case _: EmptySet if isZ3 => renderApp("Set_empty", Seq(), literal.sort)
     case _: EmptyMultiset => renderApp("Multiset_empty", Seq(), literal.sort)
     case _: EmptyMap => renderApp("Map_empty", Seq(), literal.sort)
   }

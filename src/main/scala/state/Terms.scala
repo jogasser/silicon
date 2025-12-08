@@ -11,6 +11,7 @@ import scala.annotation.tailrec
 import scala.reflect.ClassTag
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
+import viper.silicon.decider.Cvc5ProverStdIO
 import viper.silicon.state.terms.sorts.Bool
 import viper.silicon.{Map, Stack, state, toMap}
 import viper.silicon.state.{Identifier, MagicWandChunk, MagicWandIdentifier, SimpleIdentifier, SortBasedIdentifier}
@@ -1187,6 +1188,7 @@ object Equals extends ((Term, Term) => BooleanTerm) {
             BuiltinEquals(e0, e1)
 
           case _: sorts.Multiset | _: sorts.Map => CustomEquals(e0, e1)
+          case _: sorts.Set if !Verifier.config.prover.getOrElse("").eq(Cvc5ProverStdIO.name) => CustomEquals(e0, e1)
           case _ => BuiltinEquals(e0, e1)
         }
     }
