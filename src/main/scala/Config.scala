@@ -816,19 +816,19 @@ class Config(args: Seq[String]) extends SilFrontendConfig(args, "Silicon") {
 
   val cvc5EMatching: ScallopOption[String] = opt[String]("cvc5EMatching",
     descr = "CVC5 e-matching option (default: true)",
-    default = Some("false"),
+    default = Some("true"),
     noshort = true
   )
 
   val cvc5FmfFunRlv: ScallopOption[String] = opt[String]("cvc5FmfFunRlv",
-    descr = "CVC5 fmf-fun-rlv option (default: true)",
+    descr = "CVC5 fmf-fun-rlv option (default: false)",
     default = Some("false"),
     noshort = true
   )
 
   val cvc5fmf: ScallopOption[String] = opt[String]("cvc5FiniteModelFind",
-    descr = "CVC5 finite model find option (default: fmc)",
-    default = Some("false"),
+    descr = "CVC5 finite model find option (default: true)",
+    default = Some("true"),
     noshort = true
   )
 
