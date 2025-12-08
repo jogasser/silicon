@@ -58,5 +58,19 @@ class Cvc5ProverStdIO(uniqueId: String,
     Paths.get(Verifier.config.cvc5Exe)
   }
 
-  override def emitSettings(contents: Iterable[String]): Unit = emit(contents)
+  override def emitSettings(contents: Iterable[String]): Unit = {
+    emit(contents)
+    
+    val config = Verifier.config
+    val configurableSettings = Seq(
+      s"(set-option :finite-model-find ${config.cvc5fmf()})",
+      s"(set-option :cbqi ${config.cvc5cbqi()})",
+      s"(set-option :cegqi ${config.cvc5cegqi()})",
+      s"(set-option :e-matching ${config.cvc5EMatching()})",
+      s"(set-option :fmf-fun-rlv ${config.cvc5FmfFunRlv()})",
+      s"(set-option :mbqi ${config.cvc5Mbqi()})",
+    )
+    
+    emit(configurableSettings)
+  }
 }
