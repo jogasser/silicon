@@ -8,7 +8,7 @@ package viper.silicon.supporters.functions
 
 import scala.annotation.unused
 import com.typesafe.scalalogging.LazyLogging
-import viper.silicon.state.{FunctionCallTransformer, Identifier, IdentifierFactory, SimpleIdentifier, SuffixedIdentifier, SymbolConverter}
+import viper.silicon.state.{FunctionCallTransformer, Identifier, IdentifierFactory, SymbolConverter}
 import viper.silver.ast
 import viper.silicon.common.collections.immutable.InsertionOrderedSet
 import viper.silicon.interfaces.FatalResult
@@ -175,8 +175,7 @@ class FunctionData(val programFunction: ast.Function,
     expressionTranslator.translatePrecondition(program, programFunction.pres, this)
   }
 
-  lazy val finalFunctionBody: Term = {
-    assert(phase == 3, s"Final function must be generated in phase 2, current phase is $phase")
+  lazy val definitionalBody: Term = {
     val body = expressionTranslator.translate(program, programFunction, this).map(b => Equals(formalResult, b))
     var combinedTerm = And(body.map(_ +: translatedPosts).getOrElse(translatedPosts))
 
@@ -184,32 +183,10 @@ class FunctionData(val programFunction: ast.Function,
       combinedTerm = Implies(And(translatedPres), combinedTerm)
 
     combinedTerm = And(generateNestedDefinitionalAxioms ++ List(combinedTerm))
-    transformAllFunctionCalls(combinedTerm, fun => functionSupporter.finalVersion(fun))
-  }
-
-  private def definitionalBody(phaseInfo: Map[Function, Int]): Term = {
-    assert(phase == 2, s"Definitional function must be generated in phase 2, current phase is $phase")
-
-    def transformFunction(fun: HeapDepFun) = {
-      phaseInfo(fun) match {
-        case 1 => functionSupporter.postconditionVersion(fun);
-        case 2 => functionSupporter.definitionalVersion(fun);
-      }
-    }
-
-    val body = expressionTranslator.translate(program, programFunction, this).map(b => Equals(formalResult, b))
-    var combinedTerm = And(body.map(_ +: translatedPosts).getOrElse(translatedPosts))
-
-    if(translatedPres.nonEmpty)
-      combinedTerm = Implies(And(translatedPres), combinedTerm)
-
-    combinedTerm = And(generateNestedDefinitionalAxioms ++ List(combinedTerm))
-    transformAllFunctionCalls(combinedTerm, transformFunction)
+    transformAllFunctionCalls(combinedTerm, functionSupporter.definitionalVersion)
   }
 
   private def postsBody(phaseInfo: Map[Function, Int]): Term = {
-    assert(phase == 1, s"Postcondition function must be generated in phase 1, current phase is $phase")
-
     def transformFunction(fun: HeapDepFun) = {
       phaseInfo(fun) match {
         case 1 => functionSupporter.postconditionVersion(fun);
@@ -232,11 +209,7 @@ class FunctionData(val programFunction: ast.Function,
     FunctionDef(functionSupporter.postconditionVersion(function), arguments, postsBody(phaseInfo))
   }
 
-  def defVersionDef(phaseInfo: Map[Function, Int]): FunctionDef = {
-    FunctionDef(functionSupporter.definitionalVersion(function), arguments, definitionalBody(phaseInfo))
-  }
-
-  def finalVersionDef(): FunctionDef = {
-    FunctionDef(functionSupporter.finalVersion(function), arguments, finalFunctionBody)
+  def defVersionDef(): FunctionDef = {
+    FunctionDef(functionSupporter.definitionalVersion(function), arguments, definitionalBody)
   }
 }
