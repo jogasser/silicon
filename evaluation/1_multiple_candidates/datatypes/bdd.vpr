@@ -1,0 +1,202 @@
+adt BddNode {
+    Leaf(b: Bool)
+    Node(variable: Int, left: BddNode, right: BddNode)
+}
+field nodes: Set[BddNode];
+field root: Int;
+
+function allNodes(n: BddNode): Set[BddNode]
+//    decreases n
+{
+    n.isLeaf ? Set(n) : Set(n) union allNodes(n.left) union allNodes(n.right)
+}
+
+function children(n: BddNode): Set[BddNode]
+//    decreases n
+{
+    n.isLeaf ? Set() : allNodes(n.left) union allNodes(n.right)
+}
+
+function isBdd(set: Set[BddNode], n: BddNode): Bool
+//    decreases n
+{
+    allNodes(n) subset set
+}
+
+function eval(assignment: Set[Int], n: BddNode): Bool
+//    decreases n
+{
+    n.isLeaf ? n.b : n.variable in assignment ? eval(assignment, n.left) : eval(assignment, n.right)
+}
+
+function if_n(v: Int, left: BddNode, right: BddNode): BddNode 
+//    decreases
+{
+    left == right ? left : Node(v, left, right)
+}
+
+function not(n: BddNode): BddNode 
+//    decreases n
+{
+    n.isLeaf ? Leaf(!n.b) : if_n(n.variable, not(n.left), not(n.right))
+}
+
+function and(l: BddNode, r: BddNode): BddNode 
+//    decreases l, r
+{
+    l == Leaf(false) || r == Leaf(false) ? Leaf(false) : l == Leaf(true) ? r : r == Leaf(true) ? l :
+    l.variable < r.variable ? if_n(l.variable, and(l.left, r), and(l.right, r)) :
+    l.variable > r.variable ? if_n(r.variable, and(l, r.left), and(l, r.right)) :
+    if_n(l.variable, and(l.left, r.left), and(l.right, r.right))
+    
+}
+
+function isOrdered(n: BddNode): Bool {
+    n.isLeaf || (forall a: BddNode :: a in children(n) ==> (a.isLeaf || (a.variable > n.variable && isOrdered(a))))
+}
+
+function isReduced(n: BddNode): Bool 
+    decreases _
+    ensures forall a: BddNode :: a.isLeaf ==> isReduced(a)
+{
+    n.isLeaf || (n.left != n.right) && forall m: BddNode :: m in children(n) ==> isReduced(m)
+}
+
+define ROBDD_children(a, node) (
+    ((a in allNodes(node)) ==> isOrdered(a)) &&
+    ((a in allNodes(node)) ==> isReduced(a))
+)
+
+method mk_node(bdd: Ref, n: BddNode) returns (node: BddNode)
+requires acc(bdd.nodes)
+requires n.isLeaf || (isBdd(bdd.nodes, n.left) && isBdd(bdd.nodes, n.right))
+ensures acc(bdd.nodes)
+ensures n == node && bdd.nodes == old(bdd.nodes) union Set(node)
+ensures isBdd(bdd.nodes, node)
+ensures forall a: BddNode :: isOrdered(n) && isReduced(n) ==>  ROBDD_children(a, node)
+// decreases
+{
+    if(!(n in bdd.nodes)) {
+        bdd.nodes := bdd.nodes union Set(n)
+    }
+    node := n;
+}
+
+method mk_true(bdd: Ref) returns (node: BddNode)
+requires acc(bdd.nodes)
+ensures acc(bdd.nodes) && isBdd(bdd.nodes, node)
+ensures bdd.nodes == old(bdd.nodes) union Set(Leaf(true))
+ensures node == Leaf(true)
+ensures forall a: BddNode :: ROBDD_children(a, node)
+// decreases
+{
+    node := mk_node(bdd, Leaf(true))
+}
+
+method mk_false(bdd: Ref) returns (node: BddNode)
+requires acc(bdd.nodes)
+ensures acc(bdd.nodes) && isBdd(bdd.nodes, node)
+ensures bdd.nodes == old(bdd.nodes) union Set(Leaf(false))
+ensures node == Leaf(false)
+ensures forall a: BddNode :: ROBDD_children(a, node)
+// decreases
+{
+    node := mk_node(bdd, Leaf(false))
+}
+
+method mk_if(bdd: Ref, variable: Int, left: BddNode, right: BddNode) returns (node: BddNode)
+requires acc(bdd.nodes)
+requires left in bdd.nodes && right in bdd.nodes
+requires isBdd(bdd.nodes, left) && isBdd(bdd.nodes, right)
+ensures acc(bdd.nodes)
+ensures bdd.nodes == old(bdd.nodes) union Set(node)
+ensures node == if_n(variable, left, right)
+ensures forall a: BddNode :: (left.isLeaf && right.isLeaf) ==> ROBDD_children(a, node)
+ensures forall a: BddNode :: (left.isLeaf && isOrdered(right) && variable < right.variable && isReduced(right)) ==> ROBDD_children(a, node)
+ensures forall a: BddNode :: (right.isLeaf && isOrdered(left) && variable < left.variable && isReduced(left)) ==> ROBDD_children(a, node)
+ensures forall a: BddNode :: (isOrdered(left) && isOrdered(right) && isReduced(left) && isReduced(right) && variable < left.variable && variable < right.variable) ==> ROBDD_children(a, node)
+ensures forall a: BddNode :: (left == right && isOrdered(left) && isReduced(left)) ==> ROBDD_children(a, node)
+// decreases
+{
+    if(left == right) {
+        node := left
+    } else {
+        node := mk_node(bdd, Node(variable, left, right))
+    }
+}
+
+method mk_var(bdd:Ref, variable: Int) returns (node: BddNode)
+requires acc(bdd.nodes)
+ensures acc(bdd.nodes)
+ensures bdd.nodes == old(bdd.nodes) union Set(node, Leaf(true), Leaf(false)) 
+ensures node == Node(variable, Leaf(true), Leaf(false))
+ensures isBdd(bdd.nodes, node)
+ensures forall a: BddNode :: ROBDD_children(a, node)
+// decreases
+{
+    var t: BddNode := mk_true(bdd);
+    var f: BddNode := mk_false(bdd);
+    node := mk_if(bdd, variable, t, f)
+} 
+
+method mk_not(bdd:Ref, n: BddNode) returns (node: BddNode)
+requires acc(bdd.nodes)
+requires isBdd(bdd.nodes, n)
+ensures acc(bdd.nodes)
+ensures forall s: Set[Int] :: eval(s, n) != eval(s, node)
+ensures isBdd(bdd.nodes, node)
+ensures node == not(n)
+ensures isOrdered(n) ==> node.isLeaf || node.variable >= n.variable
+ensures bdd.nodes == old(bdd.nodes) union allNodes(node)
+ensures old(bdd.nodes) subset bdd.nodes
+ensures forall a: BddNode :: isOrdered(n) && isReduced(n) ==> ROBDD_children(a, node)
+{
+    if(n == Leaf(true)) {
+        node := mk_false(bdd)
+        assert isOrdered(node)
+    } elseif(n == Leaf(false)){
+        node := mk_true(bdd)
+        assert isOrdered(node)
+    } else {
+        var left: BddNode := mk_not(bdd, n.left)
+        var right: BddNode := mk_not(bdd, n.right)
+        node := mk_if(bdd, n.variable, left, right)
+    }
+}
+
+method mk_and(bdd:Ref, l: BddNode, r: BddNode) returns (node: BddNode)
+requires acc(bdd.nodes)
+requires isBdd(bdd.nodes, l) && isBdd(bdd.nodes, r)
+ensures acc(bdd.nodes)
+ensures isBdd(bdd.nodes, node)
+ensures bdd.nodes == old(bdd.nodes) union allNodes(node)
+ensures node == and(l, r)
+ensures forall s: Set[Int] :: eval(s, node) == (eval(s, l) && eval(s, r))
+ensures (isOrdered(l) && isOrdered(r)) ==> node.isLeaf || node.variable >= l.variable || node.variable >= r.variable
+ensures forall a: BddNode :: (isOrdered(l) && isOrdered(r) && isReduced(l) && isReduced(r)) ==> ROBDD_children(a, node)
+// decreases l, r
+{
+    if(l == Leaf(false) || r == Leaf(false)) {
+        node := mk_false(bdd)
+    } elseif(l == Leaf(true)) {
+        node := r
+    } elseif(r == Leaf(true)) {
+        node := l
+    } else {
+        if(l.variable < r.variable) {
+            var left: BddNode := mk_and(bdd, l.left, r)
+            var right: BddNode := mk_and(bdd, l.right, r)
+            node := mk_if(bdd, l.variable, left, right)
+        } elseif(l.variable > r.variable) {
+            var left: BddNode := mk_and(bdd, l, r.left)
+            var right: BddNode := mk_and(bdd, l, r.right)
+            node := mk_if(bdd, r.variable, left, right)
+        } else {
+            var left: BddNode := mk_and(bdd, l.left, r.left)
+            var right: BddNode := mk_and(bdd, l.right, r.right)
+            node := mk_if(bdd, l.variable, left, right)
+        }
+    }
+}
+
+

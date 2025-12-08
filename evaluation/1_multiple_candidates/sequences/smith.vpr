@@ -1,0 +1,186 @@
+method main_fixed(p0_1: Bool, p1_1: Bool, a_in: Seq[Int], a_in_1: Seq[Int], secret: Int, secret_1: Int) returns (leak: Int, leak_1: Int)
+  requires (p0_1 ==> secret >= 0) && (p1_1 ==> secret_1 >= 0) && ((p0_1 ==> secret < |a_in|) && (p1_1 ==> secret_1 < |a_in_1|))
+  requires (p0_1 ==> p0_1 && p1_1 ==> |a_in| == |a_in_1|) && (p1_1 ==> true) && (forall i: Int :: { a_in[i] } { a_in_1[i] } (p0_1 ==> i >= 0 && i < |a_in| ==> a_in[i] == 0) && (p1_1 ==> i >= 0 && i < |a_in_1| ==> a_in_1[i] == 0))
+  ensures (p0_1 ==> p0_1 && p1_1 ==> leak == leak_1) && (p1_1 ==> true)
+{
+  var a: Seq[Int]
+  var i: Int
+  var _cond0: Bool
+  var a_1: Seq[Int]
+  var i_1: Int
+  var _cond0_1: Bool
+  if (p0_1) {
+    _cond0 := false
+  }
+  if (p1_1) {
+    _cond0_1 := false
+  }
+  if (p0_1) {
+    a := a_in
+  }
+  if (p1_1) {
+    a_1 := a_in_1
+  }
+  if (p0_1) {
+    a := a[secret := 1]
+  }
+  if (p1_1) {
+    a_1 := a_1[secret_1 := 1]
+  }
+  inhale p0_1 && p1_1 ==> secret == secret_1
+  if (p0_1) {
+    i := 0
+  }
+  if (p1_1) {
+    i_1 := 0
+  }
+  if (p0_1) {
+    leak := 0
+  }
+  if (p1_1) {
+    leak_1 := 0
+  }
+  var tmp0_1: Int
+  var tmp1_1: Int
+  var tmp0_2: Int
+  var tmp1_2: Int
+  if (!p0_1) {
+    tmp0_1 := leak
+  }
+  if (!p1_1) {
+    tmp1_1 := leak_1
+  }
+  if (!p0_1) {
+    tmp0_2 := i
+  }
+  if (!p1_1) {
+    tmp1_2 := i_1
+  }
+  while (p0_1 && i < |a| || p1_1 && i_1 < |a_1|)
+    invariant (p0_1 ==> i >= 0) && (p1_1 ==> i_1 >= 0) && ((p0_1 ==> i <= |a|) && (p1_1 ==> i_1 <= |a_1|))
+    invariant (forall j: Int :: (p0_1 ==> true) && (p1_1 ==> true))
+    invariant (p0_1 ==> p0_1 && p1_1 ==> i == i_1) && (p1_1 ==> true) && ((p0_1 ==> p0_1 && p1_1 ==> leak == leak_1) && (p1_1 ==> true))
+    invariant !p0_1 ==> tmp0_1 == leak
+    invariant !p0_1 ==> tmp0_2 == i
+    invariant !p1_1 ==> tmp1_2 == i_1
+    invariant !p1_1 ==> tmp1_1 == leak_1 
+  {
+    var p0_2: Bool
+    var p1_2: Bool
+    p0_2 := p0_1 && i < |a|
+    p1_2 := p1_1 && i_1 < |a_1|
+    var pt0_0: Bool
+    var pt1_0: Bool
+    var pf0_0: Bool
+    var pf1_0: Bool
+    pt0_0 := p0_2 && a[i] == 1
+    pt1_0 := p1_2 && a_1[i_1] == 1
+    pf0_0 := p0_2 && !(a[i] == 1)
+    pf1_0 := p1_2 && !(a_1[i_1] == 1)
+    if (pt0_0) {
+      leak := i
+    }
+    if (pt1_0) {
+      leak_1 := i_1
+    }
+    if (p0_2) {
+      i := i + 1
+    }
+    if (p1_2) {
+      i_1 := i_1 + 1
+    }
+  }
+}
+
+method main(p0: Bool, p1: Bool, a_in: Seq[Int], a_in_0: Seq[Int], secret: Int, secret_0: Int) returns (leak: Int, leak_0: Int)
+  requires (p0 ==> secret >= 0) && (p1 ==> secret_0 >= 0) && ((p0 ==> secret < |a_in|) && (p1 ==> secret_0 < |a_in_0|))
+  requires (p0 ==> p0 && p1 ==> a_in == a_in_0) && (p1 ==> true) && (forall i: Int :: { a_in[i] } { a_in_0[i] } (p0 ==> i >= 0 && i < |a_in| ==> a_in[i] == 0) && (p1 ==> i >= 0 && i < |a_in_0| ==> a_in_0[i] == 0))
+  ensures (p0 ==> p0 && p1 ==> leak == leak_0) && (p1 ==> true)
+{
+  var a: Seq[Int]
+  var i: Int
+  var _cond0: Bool
+  var a_0: Seq[Int]
+  var i_0: Int
+  var _cond0_0: Bool
+  if (p0) {
+    _cond0 := false
+  }
+  if (p1) {
+    _cond0_0 := false
+  }
+  if (p0) {
+    a := a_in
+  }
+  if (p1) {
+    a_0 := a_in_0
+  }
+  if (p0) {
+    a := a[secret := 1]
+  }
+  if (p1) {
+    a_0 := a_0[secret_0 := 1]
+  }
+  if (p0) {
+    i := 0
+  }
+  if (p1) {
+    i_0 := 0
+  }
+  if (p0) {
+    leak := 0
+  }
+  if (p1) {
+    leak_0 := 0
+  }
+  var tmp0: Int
+  var tmp1: Int
+  var tmp0_0: Int
+  var tmp1_0: Int
+  if (!p0) {
+    tmp0 := leak
+  }
+  if (!p1) {
+    tmp1 := leak_0
+  }
+  if (!p0) {
+    tmp0_0 := i
+  }
+  if (!p1) {
+    tmp1_0 := i_0
+  }
+  while (p0 && i < |a| || p1 && i_0 < |a_0|)
+    invariant (p0 ==> i >= 0) && (p1 ==> i_0 >= 0) && ((p0 ==> i <= |a|) && (p1 ==> i_0 <= |a_0|))
+    invariant (forall j: Int :: (p0 ==> true) && (p1 ==> true))
+    invariant (p0 ==> p0 && p1 ==> leak == leak_0) && (p1 ==> true) && ((p0 ==> p0 && p1 ==> i == i_0) && (p1 ==> true))
+    invariant !p0 ==> tmp0_0 == i
+    invariant !p0 ==> tmp0 == leak
+    invariant !p1 ==> tmp1 == leak_0
+    invariant !p1 ==> tmp1_0 == i_0 
+  {
+    var p0_0: Bool
+    var p1_0: Bool
+    p0_0 := p0 && i < |a|
+    p1_0 := p1 && i_0 < |a_0|
+    var pt0: Bool
+    var pt1: Bool
+    var pf0: Bool
+    var pf1: Bool
+    pt0 := p0_0 && a[i] == 1
+    pt1 := p1_0 && a_0[i_0] == 1
+    pf0 := p0_0 && !(a[i] == 1)
+    pf1 := p1_0 && !(a_0[i_0] == 1)
+    if (pt0) {
+      leak := i
+    }
+    if (pt1) {
+      leak_0 := i_0
+    }
+    if (p0_0) {
+      i := i + 1
+    }
+    if (p1_0) {
+      i_0 := i_0 + 1
+    }
+  }
+}

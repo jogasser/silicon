@@ -1,0 +1,212 @@
+// Combinatorics and advanced recursive patterns
+
+// Permutations: P(n,r) = n!/(n-r)!
+function permutations(n: Int, r: Int): Int
+  requires n >= 0 && r >= 0
+{
+  r > n ? 0 :
+  r == 0 ? 1 :
+  n * permutations(n - 1, r - 1)
+}
+
+// Combinations: C(n,r) = n!/(r!(n-r)!)
+function combinations(n: Int, r: Int): Int
+  requires n >= 0 && r >= 0
+{
+  r > n ? 0 :
+  r == 0 || r == n ? 1 :
+  combinations(n - 1, r - 1) + combinations(n - 1, r)
+}
+
+// Stirling numbers of second kind S(n,k) - simplified
+function stirling_second(n: Int, k: Int): Int
+  requires n >= 0 && k >= 0
+  requires n <= 8 && k <= 8 // Bounded for verification
+{
+  k > n ? 0 :
+  n == 0 && k == 0 ? 1 :
+  n > 0 && k == 0 ? 0 :
+  k == 1 || k == n ? 1 :
+  k * stirling_second(n - 1, k) + stirling_second(n - 1, k - 1)
+}
+
+// Bell numbers B(n) - number of partitions of a set
+function bell_number(n: Int): Int
+  requires n >= 0
+  requires n <= 8 // Bounded for verification
+  ensures result >= 0
+{
+  n == 0 ? 1 : bell_sum_helper(n, 0)
+}
+
+function bell_sum_helper(n: Int, k: Int): Int
+  requires n >= 0 && k >= 0
+  requires n <= 8 && k <= 8
+{
+  k >= n ? 0 : stirling_second(n, k + 1) + bell_sum_helper(n, k + 1)
+}
+
+// Partition function - count ways to partition n
+function partition_count(n: Int, max_value: Int): Int
+  requires n >= 0 && max_value >= 0
+  requires n <= 20 && max_value <= 20 // Bounded
+  ensures n > 0 && max_value == 0 ==> result == 0
+{
+  n == 0 ? 1 :
+  max_value == 0 ? 0 :
+  n < max_value ? partition_count(n, n) :
+  partition_count(n - max_value, max_value) + partition_count(n, max_value - 1)
+}
+
+// Derangements D(n) - permutations with no fixed points
+function derangements(n: Int): Int
+  requires n >= 0
+  requires n <= 10 // Bounded for verification
+{
+  n == 0 ? 1 :
+  n == 1 ? 0 :
+  n == 2 ? 1 :
+  (n - 1) * (derangements(n - 1) + derangements(n - 2))
+}
+
+// Hofstadter Q sequence
+function hofstadter_q(n: Int): Int
+  requires n > 0
+  requires n <= 20 // Bounded for verification
+{
+  n == 1 || n == 2 ? 1 :
+  hofstadter_q(n - hofstadter_q(n - 1)) + hofstadter_q(n - hofstadter_q(n - 2))
+}
+
+// Hofstadter R sequence
+function hofstadter_r(n: Int): Int
+  requires n > 0
+  requires n <= 15 // Bounded
+{
+  n == 1 ? 1 :
+  hofstadter_r(n - hofstadter_r(n - 1)) + 1
+}
+
+// Lucas numbers (similar to Fibonacci)
+function lucas(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+{
+  n == 0 ? 2 :
+  n == 1 ? 1 :
+  lucas(n - 1) + lucas(n - 2)
+}
+
+// Tribonacci numbers
+function tribonacci(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+{
+  n == 0 ? 0 :
+  n == 1 || n == 2 ? 1 :
+  tribonacci(n - 1) + tribonacci(n - 2) + tribonacci(n - 3)
+}
+
+// Padovan sequence
+function padovan(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+{
+  n <= 2 ? 1 : padovan(n - 2) + padovan(n - 3)
+}
+
+// Motzkin numbers (counts paths)
+function motzkin(n: Int): Int
+  requires n >= 0
+  requires n <= 10 // Bounded
+{
+  n == 0 || n == 1 ? 1 :
+  motzkin_helper(n - 1, 0)
+}
+
+function motzkin_helper(n: Int, k: Int): Int
+  requires n >= 0 && k >= 0
+  requires n <= 10 && k <= 10
+{
+  k > n ? 0 :
+    combinations(n, k) * catalan_like(k) + motzkin_helper(n, k + 1)
+}
+
+function catalan_like(n: Int): Int
+  requires n >= 0
+  requires n <= 10
+{
+  n == 0 ? 1 :
+  n == 1 ? 1 :
+  catalan_like_sum(n, 0)
+}
+
+function catalan_like_sum(n: Int, i: Int): Int
+  requires n >= 0 && i >= 0
+  requires n <= 10 && i <= 10
+{
+  i >= n ? 0 :
+    catalan_like(i) * catalan_like(n - 1 - i) + catalan_like_sum(n, i + 1)
+}
+
+// Jacobsthal numbers
+function jacobsthal(n: Int): Int
+  requires n >= 0
+{
+  n == 0 ? 0 :
+  n == 1 ? 1 :
+  jacobsthal(n - 1) + 2 * jacobsthal(n - 2)
+}
+
+// Pell numbers
+function pell(n: Int): Int
+  requires n >= 0
+{
+  n == 0 ? 0 :
+  n == 1 ? 1 :
+  2 * pell(n - 1) + pell(n - 2)
+}
+
+// Subfactorial (derangements alternative formula)
+function subfactorial(n: Int): Int
+  requires n >= 0
+  requires n <= 10
+{
+  n == 0 ? 1 :
+  n * subfactorial(n - 1) + (n % 2 == 0 ? 1 : -1)
+}
+
+// Tower of Hanoi - minimum moves
+function hanoi_moves(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+{
+  n == 0 ? 0 : 2 * hanoi_moves(n - 1) + 1
+}
+
+// Test method
+method test_combinatorics()
+{
+  assert combinations(5, 2) == 10
+  assert combinations(4, 2) == 6
+  assert combinations(6, 3) == 20
+
+  assert permutations(5, 2) == 20
+  assert permutations(4, 4) == 24
+
+  assert derangements(3) == 2
+  assert derangements(4) == 9
+
+  assert lucas(0) == 2
+  assert lucas(1) == 1
+  assert lucas(5) == 11
+
+  assert tribonacci(4) == 4
+  assert tribonacci(5) == 7
+
+  assert jacobsthal(4) == 5
+  assert pell(4) == 12
+
+  assert hanoi_moves(3) == 7
+  assert hanoi_moves(4) == 15
+}

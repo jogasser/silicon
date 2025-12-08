@@ -1,0 +1,249 @@
+// Advanced data structures with recursive definitions
+
+// Option type for safe computations
+adt Option[T] {
+  None()
+  Some(value: T)
+}
+
+// Result type for error handling
+adt Result[T, E] {
+  Ok(value: T)
+  Err(error: E)
+}
+
+// Binary search tree operations
+adt BST {
+  BSTLeaf()
+  BSTNode(left: BST, value: Int, right: BST)
+}
+
+// Check if BST is valid
+function is_valid_bst(t: BST, min: Int, max: Int): Bool
+{
+  t.isBSTLeaf ? true :
+  t.value <= min || t.value >= max ? false :
+  is_valid_bst(t.left, min, t.value) &&
+  is_valid_bst(t.right, t.value, max)
+}
+
+// Insert into BST
+function bst_insert(t: BST, x: Int): BST
+{
+  t.isBSTLeaf ? BSTNode(BSTLeaf(), x, BSTLeaf()) :
+  x < t.value ? BSTNode(bst_insert(t.left, x), t.value, t.right) :
+  x > t.value ? BSTNode(t.left, t.value, bst_insert(t.right, x)) :
+  t  // Already exists
+}
+
+// Search in BST
+function bst_search(t: BST, x: Int): Bool
+{
+  t.isBSTLeaf ? false :
+  t.value == x ? true :
+  x < t.value ? bst_search(t.left, x) :
+  bst_search(t.right, x)
+}
+
+// Find minimum in BST
+function bst_min(t: BST): Option[Int]
+{
+  t.isBSTLeaf ? None() :
+  t.left.isBSTLeaf ? Some(t.value) :
+  bst_min(t.left)
+}
+
+// Find maximum in BST
+function bst_max(t: BST): Option[Int]
+{
+  t.isBSTLeaf ? None() :
+  t.right.isBSTLeaf ? Some(t.value) :
+  bst_max(t.right)
+}
+
+// Rose tree (multi-way tree)
+adt RoseTree {
+  Empty()
+  RoseNode(value: Int, children: Seq[RoseTree])
+}
+
+// Count nodes in rose tree
+function rose_size(t: RoseTree): Int
+{
+  1 + rose_children_size(t.children, 0)
+}
+
+function rose_children_size(children: Seq[RoseTree], idx: Int): Int
+  requires idx >= 0
+  ensures result >= 0
+{
+  idx >= |children| ? 0 :
+  rose_size(children[idx]) + rose_children_size(children, idx + 1)
+}
+
+// Height of rose tree
+function rose_height(t: RoseTree): Int
+{
+  1 + rose_children_max_height(t.children, 0, 0)
+}
+
+function rose_children_max_height(children: Seq[RoseTree], idx: Int, max_h: Int): Int
+  requires idx >= 0 && max_h >= 0
+  ensures result >= max_h
+{
+  idx >= |children| ? max_h :
+  (let h == (rose_height(children[idx])) in
+   rose_children_max_height(children, idx + 1, h > max_h ? h : max_h))
+}
+
+// Zipper for lists (functional cursor)
+adt ListZipper[T] {
+  Zipper(before: Seq[T], focus: Option[T], after: Seq[T])
+}
+
+// Move zipper forward
+function zipper_forward(z: ListZipper[Int]): ListZipper[Int]
+{
+  z.focus.isNone || |z.after| == 0 ? z :
+  Zipper(
+    z.before ++ Seq(z.focus.value),
+    Some(z.after[0]),
+    z.after[1..]
+  )
+}
+
+// Move zipper backward
+function zipper_backward(z: ListZipper[Int]): ListZipper[Int]
+{
+  |z.before| == 0 ? z :
+  Zipper(
+    z.before[..|z.before|-1],
+    Some(z.before[|z.before|-1]),
+    z.focus.isNone ? z.after : Seq(z.focus.value) ++ z.after
+  )
+}
+
+// Trie node for prefix trees
+adt Trie {
+  EmptyTrie()
+  TrieNode(isEnd: Bool, children: Seq[Trie])
+}
+
+// Check if trie is empty
+function trie_is_empty(t: Trie): Bool
+{
+  !t.isEnd && |t.children| == 0
+}
+
+// Count words in trie
+function trie_count_words(t: Trie): Int
+  ensures result >= 0
+{
+  (t.isEnd ? 1 : 0) + trie_count_children_words(t.children, 0)
+}
+
+function trie_count_children_words(children: Seq[Trie], idx: Int): Int
+  requires idx >= 0
+  ensures result >= 0
+{
+  idx >= |children| ? 0 :
+  trie_count_words(children[idx]) + trie_count_children_words(children, idx + 1)
+}
+
+// Heap property checking (min heap)
+function is_min_heap(arr: Seq[Int], idx: Int): Bool
+  requires idx >= 0
+{
+  idx >= |arr| ? true :
+  (let left == (2 * idx + 1) in
+   let right == (2 * idx + 2) in
+   (left >= |arr| || arr[idx] <= arr[left]) &&
+   (right >= |arr| || arr[idx] <= arr[right]) &&
+   is_min_heap(arr, idx + 1))
+}
+
+// Heap property checking (max heap)
+function is_max_heap(arr: Seq[Int], idx: Int): Bool
+  requires idx >= 0
+{
+  idx >= |arr| ? true :
+  (let left == (2 * idx + 1) in
+   let right == (2 * idx + 2) in
+   (left >= |arr| || arr[idx] >= arr[left]) &&
+   (right >= |arr| || arr[idx] >= arr[right]) &&
+   is_max_heap(arr, idx + 1))
+}
+
+// Segment tree query (sum in range)
+function segment_tree_query(tree: Seq[Int], node: Int, node_left: Int, node_right: Int, query_left: Int, query_right: Int): Int
+  requires node >= 0 && node < |tree|
+  requires node_left <= node_right
+  requires query_left <= query_right
+{
+  query_left > node_right || query_right < node_left ? 0 :
+  query_left <= node_left && node_right <= query_right ? tree[node] :
+  (let mid == ((node_left + node_right) / 2) in
+   segment_tree_query(tree, 2*node+1, node_left, mid, query_left, query_right) +
+   segment_tree_query(tree, 2*node+2, mid+1, node_right, query_left, query_right))
+}
+
+// Skip list level calculation (probabilistic structure simulation)
+function skip_list_level(n: Int, max_level: Int): Int
+  requires n >= 0 && max_level >= 0
+  ensures result >= 0
+  ensures result <= max_level
+{
+  n >= max_level ? max_level :
+  n % 2 == 0 ? 1 + skip_list_level(n / 2, max_level) : 1
+}
+
+// Disjoint set (union-find) path simulation
+function find_root(parent: Seq[Int], x: Int, depth: Int): Int
+  requires depth >= 0
+  requires x >= 0 && x < |parent|
+  ensures result >= 0
+{
+  depth == 0 || x >= |parent| ? x :
+  parent[x] == x ? x :
+  find_root(parent, parent[x], depth - 1)
+}
+
+// Check if two elements are in same set
+function is_same_set(parent: Seq[Int], x: Int, y: Int, depth: Int): Bool
+  requires depth >= 0
+  requires x >= 0 && x < |parent|
+  requires y >= 0 && y < |parent|
+{
+  find_root(parent, x, depth) == find_root(parent, y, depth)
+}
+
+// Test method
+method test_data_structures()
+{
+  // BST tests
+  var empty_bst: BST := BSTLeaf()
+  var bst1: BST := bst_insert(empty_bst, 5)
+  var bst2: BST := bst_insert(bst_insert(bst1, 3), 7)
+
+  assert bst_search(bst2, 5)
+  assert bst_search(bst2, 3)
+  assert !bst_search(bst2, 10)
+
+  // Option tests
+  var some_val: Option[Int] := Some(42)
+  var none_val: Option[Int] := None()
+  assert some_val.isSome
+  assert none_val.isNone
+
+  // Heap tests
+  var min_heap: Seq[Int] := Seq(1, 3, 2, 7, 5)
+  assert is_min_heap(min_heap, 0)
+
+  var max_heap: Seq[Int] := Seq(9, 7, 8, 3, 5)
+  assert is_max_heap(max_heap, 0)
+
+  // Zipper tests
+  var z: ListZipper[Int] := Zipper(Seq(), Some(1), Seq(2, 3))
+  var z2: ListZipper[Int] := zipper_forward(z)
+  assert |z2.before| == 1
+}

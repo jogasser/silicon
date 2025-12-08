@@ -1,0 +1,172 @@
+// Sorting algorithms using sequences
+
+// Check if a sequence is sorted
+function is_sorted(s: Seq[Int]): Bool
+{
+  |s| <= 1 ? true :
+    (s[0] <= s[1] && is_sorted(s[1..]))
+}
+
+// Merge two sorted sequences
+function merge(left: Seq[Int], right: Seq[Int]): Seq[Int]
+  requires is_sorted(left)
+  requires is_sorted(right)
+  ensures |result| == |left| + |right|
+  ensures is_sorted(result)
+{
+  |left| == 0 ? right :
+  |right| == 0 ? left :
+  left[0] <= right[0] ?
+    Seq(left[0]) ++ merge(left[1..], right) :
+    Seq(right[0]) ++ merge(left, right[1..])
+}
+
+// Merge sort
+function merge_sort(s: Seq[Int]): Seq[Int]
+  ensures |result| == |s|
+  ensures is_sorted(result)
+{
+  |s| <= 1 ? s :
+    merge(merge_sort(s[..|s|/2]), merge_sort(s[|s|/2..]))
+}
+
+// Insert element into sorted sequence
+function insert_sorted(s: Seq[Int], x: Int): Seq[Int]
+  requires is_sorted(s)
+  ensures |result| == |s| + 1
+  ensures is_sorted(result)
+{
+  |s| == 0 ? Seq(x) :
+  x <= s[0] ? Seq(x) ++ s :
+  Seq(s[0]) ++ insert_sorted(s[1..], x)
+}
+
+// Insertion sort
+function insertion_sort(s: Seq[Int]): Seq[Int]
+  ensures |result| == |s|
+  ensures is_sorted(result)
+{
+  |s| == 0 ? s :
+    insert_sorted(insertion_sort(s[1..]), s[0])
+}
+
+// Partition for quicksort (returns elements <= pivot, then > pivot)
+function partition_left(s: Seq[Int], pivot: Int): Seq[Int]
+  ensures forall i: Int :: 0 <= i && i < |result| ==> result[i] <= pivot
+{
+  |s| == 0 ? Seq() :
+    s[0] <= pivot ? Seq(s[0]) ++ partition_left(s[1..], pivot) :
+                    partition_left(s[1..], pivot)
+}
+
+function partition_right(s: Seq[Int], pivot: Int): Seq[Int]
+  ensures forall i: Int :: 0 <= i && i < |result| ==> result[i] > pivot
+{
+  |s| == 0 ? Seq() :
+    s[0] > pivot ? Seq(s[0]) ++ partition_right(s[1..], pivot) :
+                   partition_right(s[1..], pivot)
+}
+
+// Quick sort
+function quick_sort(s: Seq[Int]): Seq[Int]
+  ensures |result| == |s|
+  ensures is_sorted(result)
+{
+  |s| == 0 ? s :
+    quick_sort(partition_left(s[1..], s[0])) ++ Seq(s[0]) ++ quick_sort(partition_right(s[1..], s[0]))
+}
+
+// Find minimum in sequence
+function seq_min(s: Seq[Int]): Int
+  requires |s| > 0
+  ensures forall i: Int :: 0 <= i && i < |s| ==> result <= s[i]
+{
+  |s| == 1 ? s[0] :
+    (s[0] < seq_min(s[1..]) ? s[0] : seq_min(s[1..]))
+}
+
+// Find maximum in sequence
+function seq_max(s: Seq[Int]): Int
+  requires |s| > 0
+  ensures forall i: Int :: 0 <= i && i < |s| ==> result >= s[i]
+{
+  |s| == 1 ? s[0] :
+    (s[0] > seq_max(s[1..]) ? s[0] : seq_max(s[1..]))
+}
+
+// Check if all elements are equal
+function all_equal(s: Seq[Int]): Bool
+{
+  |s| <= 1 ? true :
+    (s[0] == s[1] && all_equal(s[1..]))
+}
+
+// Check if sequence is strictly increasing
+function is_strictly_sorted(s: Seq[Int]): Bool
+{
+  |s| <= 1 ? true :
+    (s[0] < s[1] && is_strictly_sorted(s[1..]))
+}
+
+// Count elements less than x
+function count_less_than(s: Seq[Int], x: Int): Int
+  ensures result >= 0
+  ensures result <= |s|
+{
+  |s| == 0 ? 0 :
+    (s[0] < x ? 1 + count_less_than(s[1..], x) : count_less_than(s[1..], x))
+}
+
+// Reverse a sequence
+function seq_reverse(s: Seq[Int]): Seq[Int]
+  ensures |result| == |s|
+{
+  |s| == 0 ? s : seq_reverse(s[1..]) ++ Seq(s[0])
+}
+
+// Binary search in sorted sequence
+function binary_search_helper(s: Seq[Int], x: Int, low: Int, high: Int): Int
+  requires is_sorted(s)
+  requires 0 <= low && low <= high && high <= |s|
+  ensures result >= -1 && result < |s|
+  ensures result >= 0 ==> s[result] == x
+{
+  low >= high ? -1 :
+    (let mid == ((low + high) / 2) in
+      s[mid] == x ? mid :
+      s[mid] < x ? binary_search_helper(s, x, mid + 1, high) :
+                   binary_search_helper(s, x, low, mid))
+}
+
+function binary_search(s: Seq[Int], x: Int): Int
+  requires is_sorted(s)
+  ensures result >= -1 && result < |s|
+  ensures result >= 0 ==> s[result] == x
+{
+  binary_search_helper(s, x, 0, |s|)
+}
+
+// Test method
+method test_sorting()
+{
+  var s1: Seq[Int] := Seq(3, 1, 4, 1, 5, 9, 2, 6)
+  var sorted1: Seq[Int] := merge_sort(s1)
+  assert is_sorted(sorted1)
+  assert |sorted1| == 8
+
+  var s2: Seq[Int] := Seq(5, 2, 8, 1, 9)
+  var sorted2: Seq[Int] := insertion_sort(s2)
+  assert is_sorted(sorted2)
+
+  var s3: Seq[Int] := Seq(1, 2, 3, 4, 5)
+  assert is_sorted(s3)
+  assert is_strictly_sorted(s3)
+
+  var s4: Seq[Int] := Seq(1, 1, 1)
+  assert is_sorted(s4)
+  assert all_equal(s4)
+
+  var s5: Seq[Int] := Seq(1, 3, 5, 7, 9)
+  assert binary_search(s5, 5) == 2
+  assert binary_search(s5, 1) == 0
+}

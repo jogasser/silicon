@@ -1,0 +1,139 @@
+// Binary tree algorithms with recursive data type
+
+// Binary tree data type
+adt Tree {
+  Leaf()
+  Node(left: Tree, value: Int, right: Tree)
+}
+
+
+// Helper function for max
+function max_f(a: Int, b: Int): Int
+  ensures result >= a && result >= b
+  ensures result == a || result == b
+{
+  a > b ? a : b
+}
+
+// Helper function for min
+function min_f(a: Int, b: Int): Int
+  ensures result <= a && result <= b
+  ensures result == a || result == b
+{
+  a < b ? a : b
+}
+
+// Height of a tree
+function tree_height(t: Tree): Int
+  ensures result >= 0
+{
+  t.isLeaf ? 0 : 1 + max_f(tree_height(t.left), tree_height(t.right))
+}
+
+// Size (number of nodes) of a tree
+function tree_size(t: Tree): Int
+  ensures result >= 0
+{
+  t.isLeaf ? 0 : 1 + tree_size(t.left) + tree_size(t.right)
+}
+
+
+// Sum of all values in tree
+function tree_sum(t: Tree): Int
+{
+  t.isLeaf ? 0 : t.value + tree_sum(t.left) + tree_sum(t.right)
+}
+
+// Check if tree contains a value
+function tree_contains(t: Tree, x: Int): Bool
+{
+  t.isLeaf ? false :
+    (t.value == x || tree_contains(t.left, x) || tree_contains(t.right, x))
+}
+
+// Check if tree is a binary search tree
+function is_bst_helper(t: Tree, min: Int, max: Int): Bool
+{
+  t.isLeaf ? true :
+    (t.value > min && t.value < max &&
+     is_bst_helper(t.left, min, t.value) &&
+     is_bst_helper(t.right, t.value, max))
+}
+
+function is_bst(t: Tree): Bool
+{
+  is_bst_helper(t, -1000000, 1000000)
+}
+
+// Maximum value in tree (assuming non-empty)
+function tree_max(t: Tree): Int
+  requires t.isNode
+{
+  t.isNode ?
+    (t.left.isLeaf && t.right.isLeaf ? t.value :
+     t.left.isLeaf ? max_f(t.value, tree_max(t.right)) :
+     t.right.isLeaf ? max_f(t.value, tree_max(t.left)) :
+     max_f(t.value, max_f(tree_max(t.left), tree_max(t.right)))) : 0
+}
+
+// Minimum value in tree (assuming non-empty)
+function tree_min(t: Tree): Int
+  requires t.isNode
+{
+  t.isNode ?
+    (t.left.isLeaf && t.right.isLeaf ? t.value :
+     t.left.isLeaf ? min_f(t.value, tree_min(t.right)) :
+     t.right.isLeaf ? min_f(t.value, tree_min(t.left)) :
+     min_f(t.value, min_f(tree_min(t.left), tree_min(t.right)))) : 0
+}
+
+
+// Count leaves in tree
+function count_leaves(t: Tree): Int
+  ensures result >= 0
+{
+  t.isLeaf ? 1 : count_leaves(t.left) + count_leaves(t.right)
+}
+
+// Check if tree is balanced (AVL property)
+function is_balanced(t: Tree): Bool
+{
+  t.isLeaf ? true :
+    (is_balanced(t.left) &&
+     is_balanced(t.right) &&
+     abs(tree_height(t.left) - tree_height(t.right)) <= 1)
+}
+
+// Absolute value helper
+function abs(x: Int): Int
+  ensures result >= 0
+{
+  x >= 0 ? x : -x
+}
+
+// Test method
+method test_tree_algorithms()
+{
+  var leaf: Tree := Leaf()
+  var single: Tree := Node(Leaf(), 5, Leaf())
+  var tree1: Tree := Node(Node(Leaf(), 2, Leaf()), 5, Node(Leaf(), 8, Leaf()))
+
+  assert tree_height(leaf) == 0
+  assert tree_height(single) == 1
+  assert tree_height(tree1.left) == 1
+  assert tree_height(tree1.right) == 1
+  assert tree_height(tree1) == 2
+
+  assert tree_size(leaf) == 0
+  assert tree_size(single) == 1
+  assert tree_size(tree1) == 3
+
+  assert tree_sum(single) == 5
+  assert tree_sum(tree1) == 15
+
+  assert tree_contains(single, 5)
+  assert !tree_contains(single, 3)
+
+  assert count_leaves(single) == 2
+  assert count_leaves(tree1) == 4
+}

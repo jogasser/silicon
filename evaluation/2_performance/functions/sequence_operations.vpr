@@ -1,0 +1,222 @@
+// Advanced sequence operations and algorithms
+
+// Longest common prefix length
+function lcp_length(s1: Seq[Int], s2: Seq[Int], idx: Int): Int
+  requires idx >= 0
+  ensures result >= 0
+{
+  idx >= |s1| || idx >= |s2| ? idx :
+  s1[idx] != s2[idx] ? idx :
+  lcp_length(s1, s2, idx + 1)
+}
+
+// Longest common subsequence length
+function lcs_length(s1: Seq[Int], s2: Seq[Int]): Int
+  ensures result >= 0
+  ensures result <= |s1| && result <= |s2|
+{
+  |s1| == 0 || |s2| == 0 ? 0 :
+  s1[0] == s2[0] ? 1 + lcs_length(s1[1..], s2[1..]) :
+  max_int(lcs_length(s1[1..], s2), lcs_length(s1, s2[1..]))
+}
+
+// Levenshtein distance (edit distance)
+function edit_distance(s1: Seq[Int], s2: Seq[Int]): Int
+  ensures result >= 0
+{
+  |s1| == 0 ? |s2| :
+  |s2| == 0 ? |s1| :
+  s1[0] == s2[0] ? edit_distance(s1[1..], s2[1..]) :
+  1 + min_of_three(
+    edit_distance(s1[1..], s2),      // deletion
+    edit_distance(s1, s2[1..]),      // insertion
+    edit_distance(s1[1..], s2[1..])  // substitution
+  )
+}
+
+// Check if sequence is palindrome
+function is_palindrome(s: Seq[Int]): Bool
+{
+  |s| <= 1 ? true :
+  s[0] == s[|s|-1] && is_palindrome(s[1..|s|-1])
+}
+
+// Count palindromic subsequences
+function count_palindromes(s: Seq[Int], start: Int, end: Int): Int
+  requires 0 <= start && start <= end && end <= |s|
+  ensures result >= 0
+{
+  start >= end ? 0 :
+  end - start == 1 ? 1 :
+  s[start] == s[end - 1] ?
+    1 + count_palindromes(s, start + 1, end - 1) + count_palindromes(s, start + 1, end) + count_palindromes(s, start, end - 1) :
+    count_palindromes(s, start + 1, end) + count_palindromes(s, start, end - 1)
+}
+
+// Maximum subarray sum (Kadane's algorithm - recursive)
+function max_subarray_sum(s: Seq[Int], idx: Int, current_sum: Int, max_sum: Int): Int
+  requires idx >= 0
+  ensures idx >= |s| ==> result == max_sum
+{
+  idx >= |s| ? max_sum :
+  (let new_current == (max_int(s[idx], current_sum + s[idx])) in
+   let new_max == (max_int(max_sum, new_current)) in
+   max_subarray_sum(s, idx + 1, new_current, new_max))
+}
+
+// Check if sequence is monotonically increasing
+function is_increasing(s: Seq[Int]): Bool
+{
+  |s| <= 1 ? true :
+  s[0] <= s[1] && is_increasing(s[1..])
+}
+
+// Check if sequence is monotonically decreasing
+function is_decreasing(s: Seq[Int]): Bool
+{
+  |s| <= 1 ? true :
+  s[0] >= s[1] && is_decreasing(s[1..])
+}
+
+// Find number of inversions (pairs where i < j but s[i] > s[j])
+function count_inversions(s: Seq[Int], i: Int, j: Int): Int
+  requires 0 <= i && i <= |s|
+  requires 0 <= j && j <= |s|
+  ensures result >= 0
+{
+  i >= |s| ? 0 :
+  j >= |s| ? count_inversions(s, i + 1, i + 2) :
+  j <= i ? count_inversions(s, i, j + 1) :
+  (s[i] > s[j] ? 1 : 0) + count_inversions(s, i, j + 1)
+}
+
+// Flatten nested sequences (one level)
+function flatten_sequences(seqs: Seq[Seq[Int]], idx: Int): Seq[Int]
+  requires idx >= 0
+  ensures idx >= |seqs| ==> result == Seq()
+{
+  idx >= |seqs| ? Seq() :
+  seqs[idx] ++ flatten_sequences(seqs, idx + 1)
+}
+
+// Interleave two sequences
+function interleave(s1: Seq[Int], s2: Seq[Int]): Seq[Int]
+  ensures |result| == |s1| + |s2|
+  ensures |s1| == 0 ==> result == s2
+  ensures |s2| == 0 ==> result == s1
+{
+  |s1| == 0 ? s2 :
+  |s2| == 0 ? s1 :
+  Seq(s1[0]) ++ Seq(s2[0]) ++ interleave(s1[1..], s2[1..])
+}
+
+// Split sequence at first occurrence of element
+function split_at_first(s: Seq[Int], x: Int, idx: Int): Seq[Int]
+  requires idx >= 0
+  ensures idx >= |s| ==> result == s
+{
+  idx >= |s| ? s :
+  s[idx] == x ? s[..idx] :
+  split_at_first(s, x, idx + 1)
+}
+
+// Remove duplicates (keeping first occurrence)
+function remove_duplicates(s: Seq[Int], seen: Set[Int]): Seq[Int]
+  ensures |s| == 0 ==> result == s
+{
+  |s| == 0 ? s :
+  s[0] in seen ? remove_duplicates(s[1..], seen) :
+  Seq(s[0]) ++ remove_duplicates(s[1..], seen union Set(s[0]))
+}
+
+// Rotate sequence left by n positions
+function rotate_left(s: Seq[Int], n: Int): Seq[Int]
+  requires n >= 0
+  ensures |s| == 0 ==> result == s
+  ensures n == 0 ==> result == s
+{
+  |s| == 0 || n == 0 ? s :
+  n >= |s| ? rotate_left(s, n % |s|) :
+  s[n..] ++ s[..n]
+}
+
+// Run length encoding count
+function run_length_count(s: Seq[Int], idx: Int, current: Int, count: Int): Int
+  requires idx >= 0 && count >= 0
+  ensures result >= 0
+{
+  idx >= |s| ? (count > 0 ? 1 : 0) :
+  idx == 0 ? run_length_count(s, idx + 1, s[idx], 1) :
+  s[idx] == current ? run_length_count(s, idx + 1, current, count + 1) :
+  1 + run_length_count(s, idx + 1, s[idx], 1)
+}
+
+// Check if sequence has duplicates
+function has_duplicates(s: Seq[Int], checked: Set[Int]): Bool
+{
+  |s| == 0 ? false :
+  s[0] in checked ? true :
+  has_duplicates(s[1..], checked union Set(s[0]))
+}
+
+// Sum of products of adjacent pairs
+function adjacent_products_sum(s: Seq[Int]): Int
+  ensures |s| <= 1 ==> result == 0
+{
+  |s| <= 1 ? 0 :
+  s[0] * s[1] + adjacent_products_sum(s[1..])
+}
+
+// Alternating sum (s[0] - s[1] + s[2] - s[3] + ...)
+function alternating_sum(s: Seq[Int], sign: Int): Int
+{
+  |s| == 0 ? 0 :
+  sign * s[0] + alternating_sum(s[1..], -sign)
+}
+
+// Helper functions
+function max_int(a: Int, b: Int): Int
+  ensures result >= a && result >= b
+  ensures result == a || result == b
+{
+  a > b ? a : b
+}
+
+function min_int(a: Int, b: Int): Int
+  ensures result <= a && result <= b
+  ensures result == a || result == b
+{
+  a < b ? a : b
+}
+
+function min_of_three(a: Int, b: Int, c: Int): Int
+  ensures result <= a && result <= b && result <= c
+{
+  min_int(min_int(a, b), c)
+}
+
+// Test method
+method test_sequence_operations()
+{
+  var s1: Seq[Int] := Seq(1, 2, 3, 4, 5)
+  var s2: Seq[Int] := Seq(1, 2, 9, 4, 5)
+
+  assert lcp_length(s1, s2, 0) == 2
+
+  var palindrome: Seq[Int] := Seq(1, 2, 3, 2, 1)
+  assert is_palindrome(palindrome)
+
+  var increasing: Seq[Int] := Seq(1, 2, 3, 4, 5)
+  assert is_increasing(increasing)
+
+  var decreasing: Seq[Int] := Seq(5, 4, 3, 2, 1)
+  assert is_decreasing(decreasing)
+
+  assert !has_duplicates(Seq(1, 2, 3), Set())
+  assert has_duplicates(Seq(1, 2, 1), Set())
+
+  var rotated: Seq[Int] := rotate_left(Seq(1, 2, 3, 4, 5), 2)
+  assert rotated == Seq(3, 4, 5, 1, 2)
+
+  assert alternating_sum(Seq(1, 2, 3, 4), 1) == -2 // 1 - 2 + 3 - 4
+}

@@ -1,0 +1,38 @@
+// Sequence axioms translated from Carbon release 22.07
+
+adt Seq[E] {
+  Nil()
+  Cons(v: E, tail: Seq[E])
+}
+
+function Seq_length_$TT$(s: Seq[$T$]): Int {
+  s.isNil ? 0 : 1 + Seq_length(s.tail)
+}
+
+function Seq_append_$TT$(s1: s, s2: $Seq[$T$]): $Seq[$T$] {
+  Cons(s, s2)
+}
+
+function Seq_append_$TT$(s1: $Seq[$T$], s2: $Seq[$T$]): $Seq[$T$] {
+   (Seq_length s1 == 0 ? s2 : Cons(Seq_index(s1, 0), Seq_append(Seq_drop(s1, 1), s2)))
+}
+
+function Seq_index_$TT$(s: $Seq[$T$], i: Int): $T$ {
+  i > 0 ? Seq_index(s.tail, i - 1) : s.head
+}
+
+function Seq_take_$TT$(s: Seq[$T$], i: Int): $T$ {
+    s.isNil ? Nil() : (i > 0 ? Cons(s.head, Seq_take(seq.tail, i - 1)) : Nil())
+}
+
+function Seq_drop_$TT$(s: Seq[$T$], i: Int): $T$ {
+    s.isNil ? Nil() : (i > 0 ? Seq_drop(seq.tail, i - 1) : seq)
+}
+
+function Seq_contains_$TT$(s: Seq[$T$], v: $T$): $T$ {
+   s.isNil ? false : (s.head == v || Seq_contains(s.tail, v))
+}
+
+function Seq_range_$TT$(i: Int, j: Int): Seq[Int {
+  i >= j ? Nil() : Cons(i, Seq_range(i + 1, j))
+}

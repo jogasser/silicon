@@ -1,0 +1,145 @@
+// List algorithms with recursive data type
+
+// Polymorphic list data type
+adt List[T] {
+  Nil()
+  Cons(head: T, tail: List[T])
+}
+
+// Length of a list
+function list_length(lst: List[Int]): Int
+  ensures result >= 0
+{
+  lst.isNil ? 0 : 1 + list_length(lst.tail)
+}
+
+// Sum of integer list
+function list_sum(lst: List[Int]): Int
+{
+  lst.isNil ? 0 : lst.head + list_sum(lst.tail)
+}
+
+// Product of integer list
+function list_product(lst: List[Int]): Int
+{
+  lst.isNil ? 1 : lst.head * list_product(lst.tail)
+}
+
+// Append two lists
+function list_append(lst1: List[Int], lst2: List[Int]): List[Int]
+  ensures list_length(result) == list_length(lst1) + list_length(lst2)
+{
+  lst1.isNil ? lst2 : Cons(lst1.head, list_append(lst1.tail, lst2))
+}
+
+// Reverse a list
+function list_reverse(lst: List[Int]): List[Int]
+  ensures list_length(result) == list_length(lst)
+{
+  lst.isNil ? lst : list_append(list_reverse(lst.tail), Cons(lst.head, Nil()))
+}
+
+// Get element at index (0-based)
+function list_get(lst: List[Int], idx: Int): Int
+  requires idx >= 0
+  requires idx < list_length(lst)
+{
+  lst.isCons ? (idx == 0 ? lst.head : list_get(lst.tail, idx - 1)) : 0
+}
+
+// Check if list contains element
+function list_contains(lst: List[Int], x: Int): Bool
+{
+  lst.isNil ? false : (lst.head == x || list_contains(lst.tail, x))
+}
+
+// Count occurrences of element
+function list_count(lst: List[Int], x: Int): Int
+  ensures result >= 0
+{
+  lst.isNil ? 0 :
+    (lst.head == x ? 1 + list_count(lst.tail, x) : list_count(lst.tail, x))
+}
+
+// Maximum element in non-empty list
+function list_max(lst: List[Int]): Int
+  requires lst.isCons
+  ensures lst.isCons && lst.tail.isNil(lst.tail) ==> result == lst.head
+  ensures lst.isCons && lst.tail.isCons(lst.tail) ==>
+    result == (lst.head > list_max(lst.tail) ? lst.head : list_max(lst.tail))
+{
+  lst.isCons ?
+    (lst.tail.isNil(lst.tail) ? lst.head :
+      (lst.head > list_max(lst.tail) ? lst.head : list_max(lst.tail))) : 0
+}
+
+// Minimum element in non-empty list
+function list_min(lst: List[Int]): Int
+  requires lst.isCons
+  ensures lst.isCons && lst.tail.isNil(lst.tail) ==> result == lst.head
+  ensures lst.isCons && lst.tail.isCons(lst.tail) ==>
+    result == (lst.head < list_min(lst.tail) ? lst.head : list_min(lst.tail))
+{
+  lst.isCons ?
+    (lst.tail.isNil(lst.tail) ? lst.head :
+      (lst.head < list_min(lst.tail) ? lst.head : list_min(lst.tail))) : 0
+}
+
+// Filter positive numbers
+function list_filter_positive(lst: List[Int]): List[Int]
+{
+  lst.isNil ? lst :
+    (lst.head > 0 ? Cons(lst.head, list_filter_positive(lst.tail)) :
+                         list_filter_positive(lst.tail))
+}
+
+// Map: multiply each element by 2
+function list_map_double(lst: List[Int]): List[Int]
+  ensures list_length(result) == list_length(lst)
+{
+  lst.isNil ? lst : Cons(lst.head * 2, list_map_double(lst.tail))
+}
+
+// Take first n elements
+function list_take(lst: List[Int], n: Int): List[Int]
+  requires n >= 0
+{
+  n == 0 || lst.isNil ? Nil() : Cons(lst.head, list_take(lst.tail, n-1))
+}
+
+// Drop first n elements
+function list_drop(lst: List[Int], n: Int): List[Int]
+  requires n >= 0
+{
+  n == 0 || lst.isNil ? lst : list_drop(lst.tail, n-1)
+}
+
+// Zip two lists (take minimum length)
+function list_zip(lst1: List[Int], lst2: List[Int]): List[Int]
+  ensures lst1.isCons && lst.tail.isCons(lst2) ==>
+    result == Cons(lst1.head + lst2.head, list_zip(lst1.tail, lst2.tail))
+{
+  lst1.isNil || lst2.isNil ? Nil() :
+    Cons(lst1.head + lst2.head, list_zip(lst1.tail, lst2.tail))
+}
+
+// Test method
+method test_list_algorithms()
+{
+  var empty: List[Int] := Nil()
+  var single: List[Int] := Cons(5, Nil())
+  var list1: List[Int] := Cons(1, Cons(2, Cons(3, Nil())))
+  var list2: List[Int] := Cons(4, Cons(5, Nil()))
+
+  assert list_length(empty) == 0
+  assert list_length(single) == 1
+  assert list_length(list1) == 3
+
+  assert list_sum(list1) == 6
+  assert list_product(list1) == 6
+
+  assert list_contains(list1, 2)
+  assert !list_contains(list1, 5)
+
+  assert list_count(Cons(1, Cons(1, Cons(2, Nil()))), 1) == 2
+}

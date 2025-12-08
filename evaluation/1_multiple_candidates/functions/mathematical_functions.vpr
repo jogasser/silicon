@@ -1,0 +1,85 @@
+// Mathematical recursive functions with specifications
+
+// Fibonacci function with exponential recursion
+function fib(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+{
+  n <= 1 ? n : fib(n-1) + fib(n-2)
+}
+
+// Factorial with specification
+function factorial(n: Int): Int
+  requires n >= 0
+  ensures result > 0
+{
+  n == 0 ? 1 : n * factorial(n-1)
+}
+
+// Greatest Common Divisor using Euclid's algorithm
+function gcd(a: Int, b: Int): Int
+  requires a > 0 && b > 0
+  ensures result > 0
+  ensures result <= a && result <= b
+{
+  b == 0 ? a : gcd(b, a % b)
+}
+
+// Power function - tail recursive style
+function power(base: Int, exp: Int): Int
+  requires exp >= 0
+{
+  exp == 0 ? 1 : base * power(base, exp-1)
+}
+
+// Ackermann function - double recursion
+function ackermann(m: Int, n: Int): Int
+  requires m >= 0 && n >= 0
+  requires m <= 3 // Bounded to avoid timeout
+  ensures result >= 0
+{
+  m == 0 ? n + 1 :
+    (n == 0 ? ackermann(m-1, 1) : ackermann(m-1, ackermann(m, n-1)))
+}
+
+// Sum of first n natural numbers
+function sum_n(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+  ensures result == n * (n + 1) / 2
+{
+  n == 0 ? 0 : n + sum_n(n-1)
+}
+
+// Binomial coefficient C(n,k)
+function binomial(n: Int, k: Int): Int
+  requires n >= 0 && k >= 0
+  ensures result >= 0
+{
+  k > n ? 0 :
+    (k == 0 || k == n ? 1 : binomial(n-1, k-1) + binomial(n-1, k))
+}
+
+// Method testing the functions
+method test_math_functions()
+{
+  assert fib(0) == 0
+  assert fib(1) == 1
+  assert fib(5) == 5
+
+  assert factorial(0) == 1
+  assert factorial(3) == 6
+  assert factorial(4) == 24
+
+  assert gcd(12, 8) == 4
+  assert gcd(7, 5) == 1
+
+  assert power(2, 3) == 8
+  assert power(5, 0) == 1
+
+  assert sum_n(5) == 15
+  assert sum_n(10) == 55
+
+  assert binomial(5, 2) == 10
+  assert binomial(4, 0) == 1
+}

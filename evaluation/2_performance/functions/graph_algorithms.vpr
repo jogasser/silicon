@@ -1,0 +1,178 @@
+// Graph algorithms using sets and sequences
+// Graphs represented as adjacency information
+
+// Edge data type
+adt Edge {
+  MkEdge(from: Int, to: Int)
+}
+
+// Check if there's a direct edge in the graph
+function has_edge(edges: Set[Edge], from: Int, to: Int): Bool
+{
+  MkEdge(from, to) in edges
+}
+
+// Get all neighbors of a node
+function get_neighbors(edges: Set[Edge], node: Int, allNodes: Set[Int]): Set[Int]
+  ensures forall n: Int :: n in result ==> has_edge(edges, node, n)
+{
+  |allNodes| == 0 ? Set() :
+    (let n == (choose_one(allNodes)) in
+      (has_edge(edges, node, n) ?
+        Set(n) union get_neighbors(edges, node, allNodes setminus Set(n)) :
+        get_neighbors(edges, node, allNodes setminus Set(n))))
+}
+
+// Helper to choose one element from a set
+function choose_one(s: Set[Int]): Int
+  requires |s| > 0
+  ensures result in s
+
+// Check if path exists using DFS (bounded depth)
+function path_exists_bounded(edges: Set[Edge], from: Int, to: Int, depth: Int, visited: Set[Int], allNodes: Set[Int]): Bool
+  requires depth >= 0
+  ensures from == to ==> result
+  ensures depth == 0 && from != to ==> !result
+{
+  depth == 0 ? from == to :
+  from == to ? true :
+  from in visited ? false :
+    path_exists_any_neighbor(edges, from, to, depth - 1, visited union Set(from), allNodes, get_neighbors(edges, from, allNodes))
+}
+
+// Check if path exists through any neighbor
+function path_exists_any_neighbor(edges: Set[Edge], from: Int, to: Int, depth: Int, visited: Set[Int], allNodes: Set[Int], neighbors: Set[Int]): Bool
+  requires depth >= 0
+{
+  |neighbors| == 0 ? false :
+    (let n == (choose_one(neighbors)) in
+      path_exists_bounded(edges, n, to, depth, visited, allNodes) ||
+      path_exists_any_neighbor(edges, from, to, depth, visited, allNodes, neighbors setminus Set(n)))
+}
+
+// Count nodes in graph
+function count_nodes(nodes: Set[Int]): Int
+  ensures result >= 0
+  ensures result == |nodes|
+{
+  |nodes|
+}
+
+// Count outgoing edges from a node
+function count_outgoing(edges: Set[Edge], from: Int, allNodes: Set[Int]): Int
+  ensures result >= 0
+{
+  |get_neighbors(edges, from, allNodes)|
+}
+
+// Check if graph has cycle of length up to k
+function has_cycle_bounded(edges: Set[Edge], start: Int, depth: Int, allNodes: Set[Int]): Bool
+  requires depth > 0
+{
+  has_self_loop(edges, start, allNodes) ||
+  (depth > 1 && has_cycle_through_neighbors(edges, start, start, depth - 1, Set(start), allNodes, get_neighbors(edges, start, allNodes)))
+}
+
+function has_cycle_through_neighbors(edges: Set[Edge], original: Int, current: Int, depth: Int, visited: Set[Int], allNodes: Set[Int], neighbors: Set[Int]): Bool
+  requires depth >= 0
+{
+  |neighbors| == 0 ? false :
+    (let n == (choose_one(neighbors)) in
+      (n == original ? true :
+       !(n in visited) && depth > 0 && path_exists_bounded(edges, n, original, depth, visited union Set(n), allNodes)) ||
+      has_cycle_through_neighbors(edges, original, current, depth, visited, allNodes, neighbors setminus Set(n)))
+}
+
+// Check if node has self-loop
+function has_self_loop(edges: Set[Edge], node: Int, allNodes: Set[Int]): Bool
+{
+  has_edge(edges, node, node)
+}
+
+// Check if graph is complete (all nodes connected to all others)
+function is_complete_graph(edges: Set[Edge], nodes: Set[Int], checked: Set[Int]): Bool
+  ensures |nodes| <= 1 ==> result
+{
+  |checked| == |nodes| ? true :
+    (let n == (choose_one(nodes setminus checked)) in
+      all_connected_from(edges, n, nodes setminus Set(n), Set()) &&
+      is_complete_graph(edges, nodes, checked union Set(n)))
+}
+
+function all_connected_from(edges: Set[Edge], from: Int, targets: Set[Int], checked: Set[Int]): Bool
+  ensures |targets| == 0 ==> result
+{
+  |checked| == |targets| ? true :
+    (let t == (choose_one(targets setminus checked)) in
+      has_edge(edges, from, t) &&
+      all_connected_from(edges, from, targets, checked union Set(t)))
+}
+
+// Compute transitive closure (reachability) with bounded depth
+function transitive_closure_from(edges: Set[Edge], from: Int, depth: Int, allNodes: Set[Int], toCheck: Set[Int]): Set[Int]
+  requires depth >= 0
+  ensures from in result || depth == 0
+{
+  depth == 0 ? Set(from) :
+    (|toCheck| == 0 ? Set(from) :
+      (let n == (choose_one(toCheck)) in
+        (path_exists_bounded(edges, from, n, depth, Set(), allNodes) ?
+          Set(n) union transitive_closure_from(edges, from, depth, allNodes, toCheck setminus Set(n)) :
+          transitive_closure_from(edges, from, depth, allNodes, toCheck setminus Set(n)))))
+}
+
+// Count edges in graph
+function count_edges(edges: Set[Edge]): Int
+  ensures result >= 0
+  ensures result == |edges|
+{
+  |edges|
+}
+
+// Check if node is a sink (no outgoing edges)
+function is_sink(edges: Set[Edge], node: Int, allNodes: Set[Int]): Bool
+{
+  |get_neighbors(edges, node, allNodes)| == 0
+}
+
+// Check if node is a source (checking if any edges point to it)
+function has_incoming_edge(edges: Set[Edge], to: Int, from_nodes: Set[Int]): Bool
+{
+  |from_nodes| == 0 ? false :
+    (let n == (choose_one(from_nodes)) in
+      has_edge(edges, n, to) || has_incoming_edge(edges, to, from_nodes setminus Set(n)))
+}
+
+function is_source(edges: Set[Edge], node: Int, allNodes: Set[Int]): Bool
+{
+  !has_incoming_edge(edges, node, allNodes)
+}
+
+// Test method
+method test_graph_algorithms()
+{
+  // Simple graph: 1 -> 2 -> 3
+  var e1: Edge := MkEdge(1, 2)
+  var e2: Edge := MkEdge(2, 3)
+  var edges: Set[Edge] := Set(e1, e2)
+  var nodes: Set[Int] := Set(1, 2, 3)
+
+  assert has_edge(edges, 1, 2)
+  assert has_edge(edges, 2, 3)
+  assert !has_edge(edges, 1, 3)
+
+  assert count_nodes(nodes) == 3
+  assert count_edges(edges) == 2
+
+  // Triangle graph with cycle: 1 -> 2 -> 3 -> 1
+  var e3: Edge := MkEdge(3, 1)
+  var cycle_edges: Set[Edge] := Set(e1, e2, e3)
+
+  assert has_cycle_bounded(cycle_edges, 1, 4, nodes)
+
+  // Check sinks and sources
+  assert is_sink(edges, 3, nodes)
+  assert !is_sink(edges, 1, nodes)
+  assert is_source(edges, 1, nodes)
+  assert !is_source(edges, 3, nodes)
+}

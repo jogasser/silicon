@@ -1,0 +1,76 @@
+method main(p0_0: Bool, p1_0: Bool, A: Seq[Int], A_0: Seq[Int])
+  requires (p0_0 ==> |A| == 64) && (p1_0 ==> |A_0| == 64)
+  requires p0_0 == p1_0
+  requires (forall i: Int :: (p0_0 ==> true) && (p1_0 ==> true))
+{
+  var i: Int
+  var _cond0: Bool
+  var i_0: Int
+  var _cond0_0: Bool
+  if (p0_0) {
+    _cond0 := false
+  }
+  if (p1_0) {
+    _cond0_0 := false
+  }
+  if (p0_0) {
+    i := 0
+  }
+  if (p1_0) {
+    i_0 := 0
+  }
+  var tmp0: Int
+  var tmp1: Int
+  if (!p0_0) {
+    tmp0 := i
+  }
+  if (!p1_0) {
+    tmp1 := i_0
+  }
+  while (p0_0 && i < 64 || p1_0 && i_0 < 64)
+    invariant (p0_0 ==> i >= 0) && (p1_0 ==> i_0 >= 0) && ((p0_0 ==> i <= 64) && (p1_0 ==> i_0 <= 64))
+    invariant (p0_0 ==> p0_0 && p1_0 ==> i == i_0) && (p1_0 ==> true)
+    invariant !p0_0 ==> tmp0 == i
+    invariant !p1_0 ==> tmp1 == i_0 
+  {
+    var p0_1: Bool
+    var p1_1: Bool
+    p0_1 := p0_0 && i < 64
+    p1_1 := p1_0 && i_0 < 64
+    var x: Int
+    var x_0: Int
+    if (p0_1) {
+      x := A[i]
+    }
+    if (p1_1) {
+      x_0 := A_0[i_0]
+    }
+    var pt0: Bool
+    var pt1: Bool
+    var pf0: Bool
+    var pf1: Bool
+    pt0 := p0_1 && x == 0
+    pt1 := p1_1 && x_0 == 0
+    pf0 := p0_1 && !(x == 0)
+    pf1 := p1_1 && !(x_0 == 0)
+    var tmp0_0: Int
+    var tmp1_0: Int
+    if (pt0) {
+      tmp0_0 := i
+    }
+    if (pt1) {
+      tmp1_0 := i_0
+    }
+    print(pt0, pt1, tmp0_0, tmp1_0)
+    if (p0_1) {
+      i := i + 1
+    }
+    if (p1_1) {
+      i_0 := i_0 + 1
+    }
+  }
+}
+
+method print(p0: Bool, p1: Bool, val: Int, val_0: Int)
+  requires (p0 ==> p0 && p1 ==> val == val_0) && (p1 ==> true)
+  requires p0 == p1

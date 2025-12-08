@@ -1,0 +1,31 @@
+Multi-Candidate Evaluation Report
+==================================
+Date: Thu Dec  4 13:22:20 CET 2025
+Candidates: 24
+
+Candidates being evaluated:
+  - all
+  - cbqi
+  - cbqi-cegqi
+  - cegqi
+  - em
+  - em-cbqi
+  - em-cegqi
+  - em-fmf
+  - em-fmf-fun
+  - em-mbqi
+  - fmf
+  - fmf-cbqi
+  - fmf-cebqi
+  - fmf-fun
+  - fmf-fun-cbqi
+  - fmf-fun-cegqi
+  - fmf-fun-mbqi
+  - fmf-mbqi
+  - mbqi
+  - mbqi-cbqi
+  - mbqi-cegqi
+  - no-em
+  - no-qi
+  - silicon
+

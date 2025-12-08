@@ -1,0 +1,237 @@
+// Number theory functions with specifications
+
+// Check if n is divisible by d
+function divisible(n: Int, d: Int): Bool
+  requires d > 0
+{
+  n % d == 0
+}
+
+// Check if n has a divisor between 2 and limit
+function has_divisor_between(n: Int, lower: Int, upper: Int): Bool
+  requires n > 0
+  requires lower > 0
+  requires lower <= upper + 1
+  ensures lower > upper ==> !result
+{
+  lower > upper ? false :
+    (divisible(n, lower) || has_divisor_between(n, lower + 1, upper))
+}
+
+// Check if n is prime (bounded check)
+function is_prime(n: Int): Bool
+  requires n > 0
+  ensures n <= 1 ==> !result
+  ensures n == 2 ==> result
+{
+  n <= 1 ? false :
+  n == 2 ? true :
+  n % 2 == 0 ? false :
+  !has_divisor_between(n, 3, n - 1)
+}
+
+// Sum of divisors of n (up to limit)
+function sum_divisors_upto(n: Int, limit: Int): Int
+  requires n > 0
+  requires limit > 0
+  ensures result >= 0
+  ensures limit == 1 ==> result == (divisible(n, 1) ? 1 : 0)
+{
+  limit == 1 ? 1 :
+    (divisible(n, limit) ? limit + sum_divisors_upto(n, limit - 1) :
+                           sum_divisors_upto(n, limit - 1))
+}
+
+// Count divisors of n (up to limit)
+function count_divisors_upto(n: Int, limit: Int): Int
+  requires n > 0
+  requires limit > 0
+  ensures result >= 0
+  ensures result >= 1 // at least 1 is a divisor
+{
+  limit == 1 ? 1 :
+    (divisible(n, limit) ? 1 + count_divisors_upto(n, limit - 1) :
+                           count_divisors_upto(n, limit - 1))
+}
+
+// Check if number is perfect (sum of proper divisors equals n)
+function is_perfect(n: Int): Bool
+  requires n > 1
+{
+  sum_divisors_upto(n, n - 1) == n
+}
+
+// LCM using GCD
+function gcd(a: Int, b: Int): Int
+  requires a > 0 && b > 0
+  ensures result > 0
+  ensures result <= a && result <= b
+{
+  b == 0 ? a : gcd(b, a % b)
+}
+
+function lcm(a: Int, b: Int): Int
+  requires a > 0 && b > 0
+  ensures result >= a && result >= b
+  ensures result > 0
+{
+  (a * b) / gcd(a, b)
+}
+
+// Extended Euclidean algorithm helper
+function gcd_extended_steps(a: Int, b: Int, steps: Int): Int
+  requires a >= 0 && b >= 0
+  requires steps >= 0
+  ensures result >= 0
+{
+  steps == 0 || b == 0 ? a :
+    gcd_extended_steps(b, a % b, steps - 1)
+}
+
+// Compute a^n using binary exponentiation concept
+function power_mod_helper(base: Int, exp: Int, m: Int): Int
+  requires exp >= 0
+  requires m > 0
+  ensures exp == 0 ==> result == 1
+{
+  exp == 0 ? 1 :
+  exp == 1 ? base % m :
+  (exp % 2 == 0 ?
+    power_mod_helper((base * base) % m, exp / 2, m) :
+    (base * power_mod_helper(base, exp - 1, m)) % m)
+}
+
+// Collatz sequence length (3n+1 problem)
+function collatz_length(n: Int, depth: Int): Int
+  requires n > 0
+  requires depth >= 0
+  ensures result >= 0
+  ensures n == 1 ==> result == 1
+{
+  depth == 0 ? 0 :
+  n == 1 ? 1 :
+  n % 2 == 0 ? 1 + collatz_length(n / 2, depth - 1) :
+               1 + collatz_length(3 * n + 1, depth - 1)
+}
+
+// Sum of digits
+function digit_sum(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+{
+  n < 10 ? n : (n % 10) + digit_sum(n / 10)
+}
+
+// Digital root (repeated digit sum until single digit)
+function digital_root(n: Int, depth: Int): Int
+  requires n >= 0
+  requires depth >= 0
+  ensures result >= 0
+{
+  depth == 0 ? n :
+  n < 10 ? n :
+  digital_root(digit_sum(n), depth - 1)
+}
+
+// Check if palindrome number
+function is_palindrome_helper(n: Int, reversed: Int, original: Int): Bool
+  requires n >= 0
+  requires reversed >= 0
+{
+  n == 0 ? reversed == original :
+    is_palindrome_helper(n / 10, reversed * 10 + (n % 10), original)
+}
+
+function is_palindrome(n: Int): Bool
+  requires n >= 0
+{
+  is_palindrome_helper(n, 0, n)
+}
+
+// Compute triangular number (sum of first n naturals)
+function triangular(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+  ensures result == n * (n + 1) / 2
+{
+  n == 0 ? 0 : n + triangular(n - 1)
+}
+
+// Check if n is a triangular number
+function is_triangular(n: Int, k: Int): Bool
+  requires n >= 0
+  requires k >= 0
+{
+  k * (k + 1) / 2 == n ? true :
+  k * (k + 1) / 2 > n ? false :
+  is_triangular(n, k + 1)
+}
+
+// Compute nth Catalan number (simplified)
+function catalan(n: Int): Int
+  requires n >= 0
+  requires n <= 10 // Bounded for verification
+  ensures result >= 0
+{
+  n == 0 ? 1 :
+    catalan_sum_helper(n, 0)
+}
+
+function catalan_sum_helper(n: Int, i: Int): Int
+  requires n >= 0
+  requires i >= 0
+  requires n <= 10
+  ensures result >= 0
+{
+  i >= n ? 0 :
+    catalan(i) * catalan(n - 1 - i) + catalan_sum_helper(n, i + 1)
+}
+
+// Sum of squares up to n
+function sum_of_squares(n: Int): Int
+  requires n >= 0
+  ensures result >= 0
+{
+  n == 0 ? 0 : n * n + sum_of_squares(n - 1)
+}
+
+// Check if number is a perfect square
+function is_perfect_square(n: Int, k: Int): Bool
+  requires n >= 0
+  requires k >= 0
+{
+  k * k == n ? true :
+  k * k > n ? false :
+  is_perfect_square(n, k + 1)
+}
+
+// Test method
+method test_number_theory()
+{
+  assert is_prime(2)
+  assert is_prime(3)
+  assert is_prime(5)
+  assert is_prime(7)
+  assert !is_prime(4)
+  assert !is_prime(6)
+
+  assert gcd(12, 8) == 4
+  assert gcd(7, 5) == 1
+  assert gcd(100, 50) == 50
+
+  assert lcm(4, 6) == 12
+  assert lcm(3, 5) == 15
+
+  assert divisible(10, 5)
+  assert !divisible(10, 3)
+
+  assert count_divisors_upto(12, 12) == 6 // 1,2,3,4,6,12
+
+  assert digit_sum(123) == 6
+  assert digit_sum(999) == 27
+
+  assert triangular(5) == 15
+  assert triangular(10) == 55
+
+  assert sum_of_squares(3) == 14 // 1 + 4 + 9
+}
